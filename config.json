@@ -1,0 +1,14 @@
+{
+    "param":{
+        "num_client": 2,
+        "port_number": 1111,
+        "output_size": 64,
+        "epochs": 2,
+        "rounds": 50,
+        "lr": 0.01,
+        "batch_size": 64,
+        "momentum": 0.9,
+        "weight_decay": 0.0001,
+        "temperature": 0.07
+    }
+}
