@@ -1,5 +1,5 @@
 import sys
-sys.path.append('./../../')
+sys.path.append('./../../../')
 
 import torch
 import torch.nn as nn
@@ -66,11 +66,14 @@ def get_info(connection, cfg):
             print("Number of classes is different.")
             raise ValueError
     
-    split_list = split_classes(cfg, classes_list[0])
-    print(split_list)
+    client1_info = [103, 4048, 3279, 4766, 1458, 2003, 914, 1204, 2566, 4659]
+    client2_info = [4897, 952, 1721, 234, 3542, 2997, 4086, 3796, 2434, 341]
 
     for i, connection in enumerate(connection_list):
-        m_sr.server(connection, b"SEND", split_list[i])
+        if i == 0:
+            m_sr.server(connection, b"SEND", client1_info)
+        else:
+            m_sr.server(connection, b"SEND", client2_info) 
 
     info_list = []
     for connection in connection_list:
@@ -81,25 +84,8 @@ def get_info(connection, cfg):
         if info_list[i]['num_iterations'] != info_list[0]['num_iterations']:
             print("Number of iterations is different.")
             raise ValueError
-        if info_list[i]['test_num_iterations'] != info_list[0]['test_num_iterations']:
-            print("Number of test iterations is different.")
-            raise ValueError
     
-    return classes_list[0], info_list[0]['num_iterations'], info_list[0]['test_num_iterations']
-
-def split_classes(cfg, num_classes):
-    class_list = list(range(num_classes))
-    chunk_size = num_classes // cfg['num_client']
-    remainder = num_classes % cfg['num_client']
-
-    split_list = []
-    start = 0
-    for i in range(cfg['num_client']):
-        end = start + chunk_size + (1 if i < remainder else 0)
-        split_list.append(class_list[start:end])
-        start = end
-
-    return split_list
+    return classes_list[0], info_list[0]['num_iterations']
 
 def set_model(cfg, num_classes):
     model = models.mobilenet_v2(num_classes=num_classes)
@@ -107,7 +93,7 @@ def set_model(cfg, num_classes):
     model.classifier.append(nn.ReLU6(inplace=True))
     model.classifier.append(nn.Linear(cfg['output_size'], num_classes))
     client_model = model.features[:6]
-    return model, client_model
+    return model, client_model.to(device)
 
 class Server_Model(nn.Module):
     def __init__(self, model):
@@ -144,14 +130,16 @@ if __name__ == '__main__':
     
     # SETTING ###########################################################
 
-    config_path = './../../config.json'
-    loss_path = './../../sl_result//niid/loss_64.txt'
-    accuracy_path = './../../sl_result/niid/accuracy_64.txt'
+    proto_sl_path = './../../../'
+    config_path = proto_sl_path + 'config.json'
+    dataset_path = proto_sl_path + 'dataset/'
+    loss_path = proto_sl_path + 'results/proto_sfl_result/dirichlet/loss_64.txt'
+    accuracy_path = proto_sl_path + 'results/proto_sfl_result/dirichlet/accuracy_64.txt'
     
     config = set_config(config_path)
     set_seed(42)
     server_socket, connection_list, client_address_list = set_connection(config)
-    num_classes, num_iterations, test_num_iterations = get_info(connection_list, config)
+    num_classes, num_iterations = get_info(connection_list, config)
     model, client_model = set_model(config, num_classes)
 
     for connection in connection_list:
@@ -159,6 +147,9 @@ if __name__ == '__main__':
 
     top_model, optimizer, criterion = set_server_model(model, config)
     top_model = top_model.to(device)
+
+    test_dataset = dsets.CIFAR10(root=dataset_path, train=False, transform=transforms.ToTensor(), download=True)
+    test_loader = torch.utils.data.DataLoader(dataset=test_dataset, batch_size=config['batch_size'], shuffle=False)
 
     set_result_file(loss_path, accuracy_path)
 
@@ -198,32 +189,45 @@ if __name__ == '__main__':
                     cur_iter = i + num_iterations * epoch + round * num_iterations * config['epochs']
                     with open(loss_path, 'a') as f:
                         f.write("Iteration: {}, Loss: {:.4f}\n".format(cur_iter, average_loss))
-                
+        
+        # AVERAGING ########################################################
+
+        client_model_list = []
+        for connection in connection_list:
+            client_model_list.append(m_sr.server(connection, b"REQUEST"))
+
+        for idx in range(len(client_model_list)):
+            for param1, param2 in zip(client_model.parameters(), client_model_list[idx].parameters()):
+                if idx == 0:
+                    param1.data.copy_(param2.data)
+                elif 0 < idx < len(client_model_list)-1:
+                    param1.data.add_(param2.data)
+                else:
+                    param1.data.add_(param2.data)
+                    param1.data.div_(len(client_model_list))
+
         # TEST ############################################################
 
         top_model.eval()
-        with torch.no_grad():
-            accuracy_list = []
-            for j, connection in enumerate(connection_list):
-                correct = 0
-                total = 0
-                for i in tqdm(range(test_num_iterations)):
-                    client_data = m_sr.server(connection, b"REQUEST")
-                    smashed_data = client_data['smashed_data'].to(device)
-                    labels = client_data['labels'].to(device)
-                    output = top_model(smashed_data)
-                    _, predicted = torch.max(output, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-                accuracy = correct / total * 100
-                accuracy_list.append(accuracy)
-                print("Client{}: {}%".format(j+1, accuracy))
-                m_sr.server(connection, b"SEND", accuracy)
-        
+        correct = 0
+        total = 0
+        for images, labels in tqdm(test_loader):
+            images = images.to(device)
+            labels = labels.to(device)
+            outputs = top_model(client_model(images))
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+        accuracy = 100 * correct / total
+        print("Round: {}, Accuracy: {:.2f}%".format(round+1, accuracy))
+
         with open(accuracy_path, 'a') as f:
-            for i in range(len(accuracy_list)):
-                f.write("Client{}: {:.2f}% | ".format(i+1, accuracy_list[i]))
-            f.write("\n")
+            f.write("Round: {} : Accuracy: {:.2f}\n".format(round+1, accuracy))
+        
+        # SEND MODEL ######################################################
+
+        for connection in connection_list:
+            m_sr.server(connection, b"SEND", client_model)
     
     # CLOSE CONNECTION #####################################################
 

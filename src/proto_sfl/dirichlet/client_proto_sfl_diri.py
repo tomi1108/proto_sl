@@ -1,5 +1,5 @@
 import sys
-sys.path.append('./../../')
+sys.path.append('./../../../')
 
 import torch
 import torch.nn as nn
@@ -50,21 +50,26 @@ def set_connection(cfg):
 def set_dataloader(cfg, dataset_path):
     train_dataset = dsets.CIFAR10(root=dataset_path, train=True, transform=transforms.ToTensor(), download=True)
     num_classes = len(train_dataset.classes)
+    m_sr.client(client_socket, num_classes)
+    class_distribution = m_sr.client(client_socket) # 各クラスのデータ数が指定されたリスト
+    print(class_distribution)
 
-    targets = np.array(train_dataset.targets)
-    indices_per_class = {i: np.where(targets == i)[0] for i in range(num_classes)}
-
-    reduced_indices = []
-    for class_idx, indices in indices_per_class.items():
-        np.random.shuffle(indices)
-        reduced_indices.extend(indices[:int(len(indices)*0.5)])
+    data_index = np.arange(len(train_dataset))
+    index_per_class = [ [] for _ in range(num_classes) ]
+    for index in data_index:
+        target = train_dataset[index][1]
+        index_per_class[target].append(index)
     
-    train_dataset = Subset(train_dataset, reduced_indices)
+    selected_index = []
+    for i, index_list in enumerate(index_per_class):
+        np.random.shuffle(index_list)
+        index_list = index_list[:class_distribution[i]] # 各クラスのデータ数を指定
+        selected_index.extend(index_list)
+    
+    train_dataset = [ data for i, data in enumerate(train_dataset) if i in selected_index ] # 選択したインデックスのデータを取得
     train_loader = DataLoader(dataset=train_dataset, batch_size=cfg['batch_size'], shuffle=True, drop_last=True)
-    test_dataset = dsets.CIFAR10(root=dataset_path, train=False, transform=transforms.ToTensor(), download=True)
-    test_loader = DataLoader(dataset=test_dataset, batch_size=cfg['batch_size'], shuffle=False)
 
-    return num_classes, train_loader, test_loader
+    return train_loader
 
 def set_model(cfg, client_socket):
     client_model = m_sr.client(client_socket).to(device)
@@ -78,14 +83,15 @@ if __name__ == '__main__':
 
     # SETTING ################################################################
 
-    config_path = './../../config.json'
-    dataset_path = './../../dataset/'
+    proto_sl_path = './../../../'
+    config_path = proto_sl_path + 'config.json'
+    dataset_path = proto_sl_path + 'dataset/'
 
     config = set_config(config_path)
     set_seed(42)
     client_socket = set_connection(config)
-    num_classes, train_loader, test_loader = set_dataloader(config, dataset_path)
-    send_info = {'num_classes': num_classes, 'num_iterations': len(train_loader), 'test_num_iterations': len(test_loader)}
+    train_loader = set_dataloader(config, dataset_path)
+    send_info = {'num_iterations': len(train_loader)}
     m_sr.client(client_socket, send_info)
     client_model, optimizer = set_model(config, client_socket)
 
@@ -121,22 +127,8 @@ if __name__ == '__main__':
     
         # TEST ###################################################################
 
-        client_model.eval()
-        with torch.no_grad():
-            for i, (images, labels) in enumerate(tqdm(test_loader)):
-
-                send_data_dict = {'smashed_data': None, 'labels': None}
-
-                images = images.to(device)
-                labels = labels.to(device)
-
-                smashed_data = client_model(images)
-                send_data_dict['smashed_data'] = smashed_data
-                send_data_dict['labels'] = labels
-                m_sr.client(client_socket, send_data_dict)
-
-            accuracy = m_sr.client(client_socket)
-            print("Round: {} | Accuracy: {:.4f}".format(round+1, accuracy))
+        m_sr.client(client_socket, client_model)
+        client_model.load_state_dict(m_sr.client(client_socket).state_dict())
 
     # CLOSE CONNECTION ######################################################
 
