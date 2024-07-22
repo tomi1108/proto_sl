@@ -22,7 +22,8 @@ def arg_parser():
     parser.add_argument('--model_name', type=str, required=True, help='The train model.')
     parser.add_argument('--dataset_path', type=str, required=True, help='Tha path of dataset directory')
     parser.add_argument('--dataset_type', type=str, required=True, help='Tha type of dataset')
-    parser.add_argument('--results_path', type=str, required=True, help=" The path of results directory")
+    parser.add_argument('--results_path', type=str, required=True, help="The path of results directory")
+    parser.add_argument('--date', type=str, required=True, help="The date.")
 
     args = parser.parse_args()
     args.fed_flag = str_to_bool(args.fed_flag)

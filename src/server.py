@@ -68,9 +68,6 @@ def create_directory(path: str):
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Directory {path} created.")
-    else:
-        # print(f"Directory {path} already exists.")
-        pass
 
 def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: str, accuracy_file: str):
     path_to_loss_file = args.results_path + dict_path + '/' + loss_file

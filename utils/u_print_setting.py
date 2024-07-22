@@ -12,12 +12,16 @@ def print_setting(args: argparse.ArgumentParser):
     # データ分布の設定方法について
     if args.data_partition == 0:
         print(" - data setting: IID")
+        data_type = 'IID'
     elif args.data_partition == 1:
         print(" - data setting: Non-IID (class separation)")
+        data_type = 'N-IID-ClassSep'
     elif args.data_partition == 2:
         print(" - data setting: Non-IID (Dirichlet beta=0.6)")
+        data_type = 'N-IID-Diri-06'
     elif args.data_partition == 3:
         print(" - data setting: Non-IID (Dirichlet beta=0.3)")
+        data_type = 'N-IID-Diri-03'
 
     # 学習方法について
     train_mode = 'SL'
@@ -32,8 +36,10 @@ def print_setting(args: argparse.ArgumentParser):
 
     dict_name1 = train_mode
     dict_name2 = args.model_name + '_' + args.dataset_type
-    file_name = str(datetime.today().date()) + '_B' + str(args.batch_size) + '_R' + str(args.num_rounds) + '_E' + str(args.num_epochs)
+    dict_name3 = args.date
 
-    print(" - total: {}\n".format(dict_name1+'_'+dict_name2+'_'+file_name))
+    file_name = data_type + '_B' + str(args.batch_size) + '_R' + str(args.num_rounds) + '_E' + str(args.num_epochs)
 
-    return dict_name1 + '/' + dict_name2, file_name + '_loss.csv', file_name + '_accuracy.csv'
+    print(" - total: {}\n".format(dict_name1+'_'+dict_name2+'_'+dict_name3+'_'+file_name))
+
+    return dict_name1 + '/' + dict_name2 + '/' + dict_name3, file_name + '_loss.csv', file_name + '_accuracy.csv'
