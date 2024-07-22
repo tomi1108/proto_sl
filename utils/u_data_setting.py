@@ -1,19 +1,64 @@
 import argparse
+import random
+import numpy as np
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
-# import u_send_receive as u_sr
+import utils.u_send_receive as u_sr
 
 from torch.utils.data import DataLoader, Subset
 
-def client_setting(args: argparse.ArgumentParser):
+def client_data_setting(args: argparse.ArgumentParser, client_socket):
     
     if args.dataset_type == 'cifar10':
         train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
         if args.fed_flag == False:
             test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
             test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False)
-    
+
     num_classes = len(train_dataset.classes)
+    u_sr.client(client_socket, num_classes)
+
+    class_distribution = u_sr.client(client_socket)
+    if class_distribution == None:
+        print("IID Setting!")
+    else:
+        print("Non-IID Setting!")
+
+    if args.data_partition == 0: # IID設定
+
+        targets = np.array(train_dataset.targets)
+        indices_per_class = {i: np.where(targets == i)[0] for i in range(num_classes)}
+
+        reduced_indices = []
+        for indices in indices_per_class.values():
+            np.random.shuffle(indices)
+            reduced_indices.extend(indices[:int(len(indices) * (1 / args.num_clients))])
+
+        train_dataset = Subset(train_dataset, reduced_indices)
+
+    elif args.data_partition == 1: # Non-IID設定（クラス分割）
+
+        train_dataset = [data for data in train_dataset if data[1] in class_distribution]
+    
+    elif args.data_partition in [2, 3]: # Non-IID（Dirichlet分布）
+        
+        targets = np.array(train_dataset.targets)
+        indices_per_class = {i: np.where(targets == i)[0] for i in range(num_classes)}
+        
+        selected_data_index = []
+        for class_idx, data_size in enumerate(class_distribution):
+            selected_index = random.sample(list(indices_per_class[class_idx]), data_size)
+            selected_data_index.extend(selected_index)
+        
+        train_dataset = Subset(train_dataset, selected_data_index)
+
+    # 各クラスのデータ数を出力
+    class_counts = [0 for _ in range(num_classes)]
+    for _, target in train_dataset:
+        class_counts[target] += 1
+    print("data size for each class")
+    print(class_counts)
+    
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
     if args.fed_flag == True:
@@ -22,7 +67,34 @@ def client_setting(args: argparse.ArgumentParser):
         return train_loader, test_loader
 
 
-def server_setting(args: argparse.ArgumentParser):
+def server_data_setting(args: argparse.ArgumentParser, connections: dict):
+
+    class_list = {}
+    for i in range(len(connections)):
+        class_list['Client {}'.format(i+1)] = u_sr.server(connections['Client {}'.format(i+1)], b"REQUEST")
+    for i in range(len(class_list)):
+        if class_list['Client {}'.format(i+1)] != class_list['Client 1']:
+            print("Number of class is different (Client {}).".format(i+1))
+            raise ValueError
+    num_class = class_list['Client 1']
+        
+    # 現状はargs.num_clients==2であることが前提の実装
+    if args.data_partition == 0: # IIDを指定
+        client1_info = None
+        client2_info = None
+    elif args.data_partition == 1: # Non-IID（クラス分割）を指定
+        split_list = split_class(args, num_class)
+        client1_info = split_list[0]
+        client2_info = split_list[1]
+    elif args.data_partition == 2: # Non-IID（Dirichlet beta=0.6）を指定
+        client1_info = [1356, 3488, 3932, 4581, 2311, 2772, 1921, 13, 4597, 29]
+        client2_info = [3644, 1512, 1068, 419, 2689, 2228, 3079, 4987, 403, 4971]
+    elif args.data_partition == 3: # Non-IID（Dirichlet beta=0.3）を指定
+        client1_info = [2755, 3706, 4298, 3029, 1, 1918, 982, 1159, 3958, 3195]
+        client2_info = [2245, 1294, 702, 1971, 4999, 3082, 4018, 3841, 1042, 1805]
+
+    u_sr.server(connections['Client 1'], b"SEND", client1_info)
+    u_sr.server(connections['Client 2'], b"SEND", client2_info)
     
     if args.fed_flag == True:
         if args.dataset_type == 'cifar10':
@@ -31,3 +103,18 @@ def server_setting(args: argparse.ArgumentParser):
         return test_loader
     else:
         return None
+    
+def split_class(args: argparse.ArgumentParser, num_class: int):
+    class_list = list(range(num_class))
+    chunk_size = num_class // args.num_clients
+    remainder = num_class % args.num_clients
+
+    split_list = []
+    start = 0
+    for i in range(args.num_clients):
+        end = start + chunk_size + (1 if i < remainder else 0)
+        split_list.append(class_list[start:end])
+        start = end
+    
+    return split_list
+
