@@ -1,8 +1,10 @@
 import sys
 sys.path.append('./../')
 
+import random
 import torch
 import torch.nn as nn
+import numpy as np
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Subset
@@ -11,16 +13,11 @@ import numpy as np
 import argparse
 from tqdm import tqdm
 
-import utils.u_argparser as u_ap
+import utils.u_argparser as u_parser
 import utils.u_send_receive as u_sr
+import utils.u_data_setting as u_dset
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-def set_connection(cfg):
-    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_address = ('localhost', cfg['port_number'])
-    client_socket.connect(server_address)
-    return client_socket
 
 def set_dataloader(cfg, dataset_path):
     train_dataset = dsets.CIFAR10(root=dataset_path, train=True, transform=transforms.ToTensor(), download=True)
@@ -55,6 +52,8 @@ def set_model(cfg, client_socket):
     return client_model, optimizer
 
 def set_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
@@ -62,12 +61,27 @@ def set_seed(seed: int):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+def set_connection(args: argparse.ArgumentParser):
+    client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_address = ('localhost', args.port_number)
+    client_socket.connect(server_address)
+    client_id = u_sr.client(client_socket)
+
+    return client_socket, client_id
+
 def main(args: argparse.ArgumentParser):
     set_seed(args.seed)
+    client_socket, client_id = set_connection(args)
+    print(type(client_socket))
+    print("\n========== Client {} ==========\n".format(client_id))
+
+    train_loader, test_loader = u_dset.client_data_setting(args, client_socket)
+
+    client_socket.close()
 
 if __name__ == '__main__':
 
-    args = u_ap.arg_parser()
+    args = u_parser.arg_parser()
     print(args)
     main(args)
 

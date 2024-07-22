@@ -1,8 +1,10 @@
 import sys
 sys.path.append('./../')
 
+import random
 import torch
 import torch.nn as nn
+import numpy as np
 import torchvision.models as models
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
@@ -12,26 +14,10 @@ from tqdm import tqdm
 
 import utils.u_argparser as u_parser
 import utils.u_send_receive as u_sr
+import utils.u_data_setting as u_dset
+import utils.u_print_setting as u_print
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-def set_connection(cfg):
-    connection_list = []
-    client_address_list = []
-
-    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_address = ('localhost', cfg['port_number'])
-    server_socket.bind(server_address)
-    server_socket.listen(cfg['num_client'])
-    print('Waiting for client...')
-
-    while len(connection_list) < cfg['num_client']:
-        connection, client_address = server_socket.accept()
-        connection_list.append(connection)
-        client_address_list.append(client_address)
-        print("Connected to client: ", client_address)
-
-    return server_socket, connection_list, client_address_list
 
 def get_info(connection, cfg):
     classes_list = []
@@ -103,6 +89,8 @@ def set_result_file(loss_path, accuracy_path):
     return
 
 def set_seed(seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
     torch.manual_seed(seed)
     if device == torch.device('cuda'):
         torch.cuda.manual_seed_all(seed)
@@ -110,8 +98,42 @@ def set_seed(seed: int):
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
 
+def set_connection(args: argparse.ArgumentParser):
+    connection_list = []
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_address = ('localhost', args.port_number)
+    server_socket.bind(server_address)
+    server_socket.listen(args.num_clients)
+    print("Waiting for Clients...")
+
+    while len(connection_list) < args.num_clients:
+        connection, client_address = server_socket.accept()
+        connection_list.append(connection)
+        print("Connected to Client: {}".format(client_address))
+    
+    connections = {}
+    for i, connection in enumerate(connection_list):
+        client_id = i+1
+        u_sr.server(connection, b'SEND', client_id)
+        connections['Client {}'.format(client_id)] = connection
+
+    return server_socket, connections
+
 def main(agrs: argparse.ArgumentParser):
     set_seed(args.seed)
+    dict_name = u_print.print_setting(args)
+
+    print("========== Server ==========\n")
+    server_socket, connections = set_connection(args)
+    
+    test_loader = u_dset.server_data_setting(args, connections) # fed_flag==FalseならNone
+    
+    for client_id, connection in connections.items():
+        print("Disconnect from Client {}".format(client_id))
+        connection.close()
+
+    server_socket.close()
 
 if __name__ == '__main__':
     
