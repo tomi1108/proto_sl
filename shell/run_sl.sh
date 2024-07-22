@@ -1,7 +1,11 @@
 #!/biun/bash
 
-anaconda_env=openpcdet
-src_path=~/proto_sl/src/
+# anaconda_env=openpcdet
+anaconda_env=faiss
+src_path=../src/
+dataset_path=../dataset/
+results_path=../results/
+dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
@@ -17,9 +21,9 @@ weight_decay=0.0001
 temperature=0.07
 output_size=64
 
-data_partition=0 # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3))
+data_partition=3 # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3))
 fed_flag=True
-proto_flag=True
+proto_flag=False
 self_kd_flag=False
 
 params="--port_number ${port_number} \
@@ -36,7 +40,10 @@ params="--port_number ${port_number} \
     --data_partition ${data_partition} \
     --fed_flag ${fed_flag} \
     --proto_flag ${proto_flag} \
-    --self_kd_flag ${self_kd_flag}
+    --self_kd_flag ${self_kd_flag} \
+    --dataset_path ${dataset_path} \
+    --dataset_type ${dataset_type} \
+    --results_path ${results_path} \
 "
 
 server_command="python3 ${server_file_name} ${params}"
@@ -48,17 +55,19 @@ gnome-terminal -- bash -c "
     conda activate ${anaconda_env}
     cd ${src_path}
     ${server_command}
-    sleep 5" &
+    echo 'Press Enter to close...'
+    read" &
 
 # クライアントを立ち上げる
 for ((i=1; i<= num_clients; i++))
 do
     gnome-terminal -- bash -c "
-        sleep 1
+        sleep 2
         source ~/anaconda3/etc/profile.d/conda.sh
         conda activate ${anaconda_env}
         cd ${src_path}
         ${client_command}
-        sleep 5" &
+        echo 'Press Enter to close...'
+        read" &
 done
 
