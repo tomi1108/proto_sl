@@ -14,8 +14,6 @@ import module.module_send_receive as m_sr
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# Test
-
 def set_config(config_path):
     with open(config_path) as f:
         cfg = json.load(f)
