@@ -9,23 +9,27 @@ from torch.utils.data import DataLoader, Subset
 
 def client_data_setting(args: argparse.ArgumentParser, client_socket):
     
+    # CIFAR10で学習
     if args.dataset_type == 'cifar10':
         train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
         if args.fed_flag == False:
             test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
             test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False)
 
+    # クラス数をサーバに送信
     num_classes = len(train_dataset.classes)
     u_sr.client(client_socket, num_classes)
 
+    # クラス分布情報をサーバから受信
     class_distribution = u_sr.client(client_socket)
     if class_distribution == None:
         print("IID Setting!")
     else:
         print("Non-IID Setting!")
 
+    # クラス分布情報に従ってデータセットを準備
     if args.data_partition == 0: # IID設定
-
+        
         targets = np.array(train_dataset.targets)
         indices_per_class = {i: np.where(targets == i)[0] for i in range(num_classes)}
 
@@ -58,24 +62,28 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
         class_counts[target] += 1
     print("data size for each class")
     print(class_counts)
-    
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
     if args.fed_flag == True:
+        iteration_info = {'num_iterations': len(train_loader)}
+        u_sr.client(client_socket, iteration_info)
         return train_loader, None
     else:
+        iteration_info = {'num_iterations': len(train_loader), 'num_test_iteration': len(test_loader)}
+        u_sr.client(client_socket, iteration_info)
         return train_loader, test_loader
 
 
 def server_data_setting(args: argparse.ArgumentParser, connections: dict):
 
     class_list = {}
-    for i in range(len(connections)):
-        class_list['Client {}'.format(i+1)] = u_sr.server(connections['Client {}'.format(i+1)], b"REQUEST")
-    for i in range(len(class_list)):
-        if class_list['Client {}'.format(i+1)] != class_list['Client 1']:
-            print("Number of class is different (Client {}).".format(i+1))
+    for client_id, connection in connections.items():
+        class_list[client_id] = u_sr.server(connection, b"REQUEST")
+    for client_id, num_class in class_list.items():
+        if num_class != class_list['Client 1']:
+            print("Number of class is different ({}).".format(num_class))
             raise ValueError
+
     num_class = class_list['Client 1']
         
     # 現状はargs.num_clients==2であることが前提の実装
@@ -96,13 +104,37 @@ def server_data_setting(args: argparse.ArgumentParser, connections: dict):
     u_sr.server(connections['Client 1'], b"SEND", client1_info)
     u_sr.server(connections['Client 2'], b"SEND", client2_info)
     
+    iteration_info_list = {}
     if args.fed_flag == True:
+        for client_id, connection in connections.items():
+            iteration_info_list[client_id] = u_sr.server(connection, b"REQUEST")
+        for iteration_info in iteration_info_list.values():
+            if iteration_info['num_iterations'] != iteration_info_list['Client 1']['num_iterations']:
+                print("The number of iterations is different")
+                raise ValueError
+        
+        num_iterations = iteration_info_list['Client 1']['num_iterations']
+
         if args.dataset_type == 'cifar10':
             test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
         test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False)
-        return test_loader
+        
+        return test_loader, num_class, num_iterations, None
     else:
-        return None
+        for client_id, connection in connections.items():
+            iteration_info_list[client_id] = u_sr.server(connection, b"REQUEST")
+        for iteration_info in iteration_info_list.values():
+            if iteration_info['num_iterations'] != iteration_info_list['Client 1']['num_iterations']:
+                print("The number of iterations is different")
+                raise ValueError
+            if iteration_info['num_test_iterations'] != iteration_info_list['Client 1']['num_test_iterations']:
+                print("The number of test iterations is different.")
+                raise ValueError
+        
+        num_iterations = iteration_info_list['Client 1']['num_iterations']
+        num_test_iterations = iteration_info_list['Client 1']['num_test_iterations']
+
+        return None, num_class, num_iterations, num_test_iterations
     
 def split_class(args: argparse.ArgumentParser, num_class: int):
     class_list = list(range(num_class))

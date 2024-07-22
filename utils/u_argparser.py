@@ -16,11 +16,26 @@ def arg_parser():
     parser.add_argument('--temperature', type=float, required=True, help="The temperature.")
     parser.add_argument('--output_size', type=int, required=True, help="The output size.")
     parser.add_argument('--data_partition', type=int, required=True, help="The data partition.(IID, Non-IID, Dirichlet)")
-    parser.add_argument('--fed_flag', type=bool, required=True, help="The SplitFed Learning flag.")
-    parser.add_argument('--proto_flag', type=bool, required=True, help="The Prototypical Contrastive Learning flag.")
-    parser.add_argument('--self_kd_flag', type=bool, required=True, help="The Self-Knowledge Distillation flag.")
+    parser.add_argument('--fed_flag', type=str, required=True, help="The SplitFed Learning flag.")
+    parser.add_argument('--proto_flag', type=str, required=True, help="The Prototypical Contrastive Learning flag.")
+    parser.add_argument('--self_kd_flag', type=str, required=True, help="The Self-Knowledge Distillation flag.")
+    parser.add_argument('--model_name', type=str, required=True, help='The train model.')
     parser.add_argument('--dataset_path', type=str, required=True, help='Tha path of dataset directory')
     parser.add_argument('--dataset_type', type=str, required=True, help='Tha type of dataset')
     parser.add_argument('--results_path', type=str, required=True, help=" The path of results directory")
 
-    return parser.parse_args()
+    args = parser.parse_args()
+    args.fed_flag = str_to_bool(args.fed_flag)
+    args.proto_flag = str_to_bool(args.proto_flag)
+    args.self_kd_flag =  str_to_bool(args.self_kd_flag)
+
+    return args
+
+def str_to_bool(value):
+    if isinstance(value, str):
+        if value == 'True':
+            return True
+        elif value == 'False':
+            return False
+    else:
+        raise ValueError(f"Cannot conver {value} to bool")
