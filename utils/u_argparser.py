@@ -19,5 +19,7 @@ def arg_parser():
     parser.add_argument('--fed_flag', type=bool, required=True, help="The SplitFed Learning flag.")
     parser.add_argument('--proto_flag', type=bool, required=True, help="The Prototypical Contrastive Learning flag.")
     parser.add_argument('--self_kd_flag', type=bool, required=True, help="The Self-Knowledge Distillation flag.")
+    parser.add_argument('--dataset_path', type=str, required=True, help='Tha path of dataset directory')
+    parser.add_argument('--dataset_type', type=str, required=True, help='Tha type of dataset')
 
     return parser.parse_args()
