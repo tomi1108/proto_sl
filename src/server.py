@@ -195,22 +195,22 @@ def main(args: argparse.ArgumentParser):
             
             # 平均化したモデルでテスト
             server_model.eval()
-            client_model.eval()
             correct = 0
             total = 0
-            for images, labels in tqdm(test_loader):
-                images = images.to(device)
-                labels = labels.to(device)
-                outputs = server_model(client_model(images))
-                _, predicted = torch.max(outputs.data, 1)
-                total += labels.size(0)
-                correct += (predicted == labels).sum().item()
-            accuracy = 100 * correct / total
-            print("Round: {}, Accuracy: {:.2f}%".format(round+1, accuracy))
+            with torch.no_grad():
+                for images, labels in tqdm(test_loader):
+                    images = images.to(device)
+                    labels = labels.to(device)
+                    outputs = server_model(client_model(images))
+                    _, predicted = torch.max(outputs.data, 1)
+                    total += labels.size(0)
+                    correct += (predicted == labels).sum().item()
+                accuracy = 100 * correct / total
+                print("Round: {}, Accuracy: {:.2f}%".format(round+1, accuracy))
 
-            with open(accuracy_path, 'a', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow([round+1, accuracy])
+                with open(accuracy_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([round+1, accuracy])
             
             # 平均化モデルをクライアントに送信
             for connection in connections.values():
