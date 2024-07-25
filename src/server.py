@@ -65,13 +65,25 @@ def set_seed(seed: int):
         torch.backends.cudnn.benchmark = False
 
 def create_directory(path: str):
+    loss = '/loss/'
+    accuracy = '/accuracy/'
+    images = '/images/'
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Directory {path} created.")
+    if not os.path.exists(path+loss):
+        os.makedirs(path+loss)
+        print(f'Directory {path+loss} created')
+    if not os.path.exists(path+accuracy):
+        os.makedirs(path+accuracy)
+        print(f'Directory {path+accuracy} created')
+    if not os.path.exists(path+images):
+        os.makedirs(path+images)
+        print(f'Directory {path+images} created')
 
 def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: str, accuracy_file: str):
-    path_to_loss_file = args.results_path + dict_path + '/' + loss_file
-    path_to_accuracy_file = args.results_path + dict_path + '/' + accuracy_file
+    path_to_loss_file = args.results_path + dict_path + '/loss/' + loss_file
+    path_to_accuracy_file = args.results_path + dict_path + '/accuracy/' + accuracy_file
 
     with open(path_to_loss_file, mode='w', newline='') as file:
         pass
@@ -231,85 +243,3 @@ if __name__ == '__main__':
     args = u_parser.arg_parser()
     print(args)
     main(args)
-
-    # # TRAINING ###########################################################
-
-    # for round in range(config['rounds']):
-        
-    #     top_model.train()
-    #     print("--- Round {}/{} ---".format(round+1, config['rounds']))
-        
-    #     for epoch in range(config['epochs']):
-            
-    #         print("--- Epoch {}/{} ---".format(epoch+1, config['epochs']))
-
-    #         for i in tqdm(range(num_iterations)):
-
-    #             loss_list = []
-    #             for connection in connection_list:
-
-    #                 client_data = m_sr.server(connection, b"REQUEST")
-    #                 smashed_data = client_data['smashed_data'].to(device)
-    #                 labels = client_data['labels'].to(device)
-
-    #                 optimizer.zero_grad()
-    #                 outputs = top_model(smashed_data)
-
-    #                 loss = criterion(outputs, labels)
-
-    #                 loss_list.append(loss.item())
-    #                 loss.backward()
-    #                 optimizer.step()
-    #                 m_sr.server(connection, b"SEND", smashed_data.grad)
-                
-    #             if i % 100 == 0:
-    #                 average_loss = sum(loss_list) / len(loss_list)
-    #                 print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
-    #                 cur_iter = i + num_iterations * epoch + round * num_iterations * config['epochs']
-    #                 with open(loss_path, 'a') as f:
-    #                     f.write("Iteration: {}, Loss: {:.4f}\n".format(cur_iter, average_loss))
-        
-    #     # AVERAGING ########################################################
-
-    #     client_model_list = []
-    #     for connection in connection_list:
-    #         client_model_list.append(m_sr.server(connection, b"REQUEST"))
-
-    #     for idx in range(len(client_model_list)):
-    #         for param1, param2 in zip(client_model.parameters(), client_model_list[idx].parameters()):
-    #             if idx == 0:
-    #                 param1.data.copy_(param2.data)
-    #             elif 0 < idx < len(client_model_list)-1:
-    #                 param1.data.add_(param2.data)
-    #             else:
-    #                 param1.data.add_(param2.data)
-    #                 param1.data.div_(len(client_model_list))
-
-    #     # TEST ############################################################
-
-    #     top_model.eval()
-    #     correct = 0
-    #     total = 0
-    #     for images, labels in tqdm(test_loader):
-    #         images = images.to(device)
-    #         labels = labels.to(device)
-    #         outputs = top_model(client_model(images))
-    #         _, predicted = torch.max(outputs.data, 1)
-    #         total += labels.size(0)
-    #         correct += (predicted == labels).sum().item()
-    #     accuracy = 100 * correct / total
-    #     print("Round: {}, Accuracy: {:.2f}%".format(round+1, accuracy))
-
-    #     with open(accuracy_path, 'a') as f:
-    #         f.write("Round: {} : Accuracy: {:.2f}\n".format(round+1, accuracy))
-        
-    #     # SEND MODEL ######################################################
-
-    #     for connection in connection_list:
-    #         m_sr.server(connection, b"SEND", client_model)
-    
-    # # CLOSE CONNECTION #####################################################
-
-    # for connection in connection_list:
-    #     connection.close()
-    # server_socket.close()
