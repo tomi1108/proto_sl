@@ -22,6 +22,12 @@ def print_setting(args: argparse.ArgumentParser):
     elif args.data_partition == 3:
         print(" - data setting: Non-IID (Dirichlet beta=0.3)")
         data_type = 'N-IID-Diri-03'
+    elif args.data_partition == 4:
+        print(" - data setting: Non-IID (Dirichlet beta=0.1)")
+        data_type = 'N-IID-Diri-01'
+    elif args.data_partition == 5:
+        print(" - data setting: Non-IID (Dirichlet beta=0.05)")
+        data_type = 'N-IID-Diri-005'
 
     # 学習方法について
     train_mode = 'SL'

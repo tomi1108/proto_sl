@@ -28,7 +28,8 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
         print("Non-IID Setting!")
 
     # クラス分布情報に従ってデータセットを準備
-    if args.data_partition == 0: # IID設定
+    # IID設定の場合のデータ設定
+    if args.data_partition == 0:
         
         targets = np.array(train_dataset.targets)
         indices_per_class = {i: np.where(targets == i)[0] for i in range(num_classes)}
@@ -40,11 +41,13 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
 
         train_dataset = Subset(train_dataset, reduced_indices)
 
-    elif args.data_partition == 1: # Non-IID設定（クラス分割）
+    # Non-IID設定（クラス分割）
+    elif args.data_partition == 1: 
 
         train_dataset = [data for data in train_dataset if data[1] in class_distribution]
     
-    elif args.data_partition in [2, 3]: # Non-IID（Dirichlet分布）
+    # Non-IID（Dirichlet分布）
+    elif args.data_partition in [2, 3, 4, 5]: 
         
         targets = np.array(train_dataset.targets)
         indices_per_class = {i: np.where(targets == i)[0] for i in range(num_classes)}
@@ -100,6 +103,12 @@ def server_data_setting(args: argparse.ArgumentParser, connections: dict):
     elif args.data_partition == 3: # Non-IID（Dirichlet beta=0.3）を指定
         client1_info = [2755, 3706, 4298, 3029, 1, 1918, 982, 1159, 3958, 3195]
         client2_info = [2245, 1294, 702, 1971, 4999, 3082, 4018, 3841, 1042, 1805]
+    elif args.data_partition == 4: # Non-IID (Dirichlet beta=0.1) を指定
+        client1_info = [4665, 570, 4406, 0, 3604, 2971, 583, 3633, 4, 4564]
+        client2_info = [335, 4430, 594, 5000, 1396, 2029, 4417, 1367, 4996, 436]
+    elif args.data_partition == 5: # Non-IID (Dirichlet beta=0.05) を指定
+        client1_info = [0, 2757, 4432, 4566, 0, 4444, 4394, 2, 0, 4405]
+        client2_info = [5000, 2243, 568, 434, 5000, 556, 606, 4998, 5000, 595]     
 
     u_sr.server(connections['Client 1'], b"SEND", client1_info)
     u_sr.server(connections['Client 2'], b"SEND", client2_info)
