@@ -1,7 +1,7 @@
 #!/bin/bash
 
-anaconda_env=openpcdet
-# anaconda_env=faiss
+# anaconda_env=openpcdet
+anaconda_env=faiss
 src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
@@ -15,14 +15,14 @@ seed=42
 num_clients=2
 num_rounds=25
 num_epochs=10
-batch_sizes=(128 64)
+batch_sizes=(128)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
 temperature=0.07
 output_size=64
 
-data_partitions=(0 1 2 3) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3))
+data_partitions=(0) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3))
 fed_flag=True
 proto_flag=False
 self_kd_flag=False
