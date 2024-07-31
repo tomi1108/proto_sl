@@ -72,7 +72,7 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
         u_sr.client(client_socket, iteration_info)
         return train_loader, None
     else:
-        iteration_info = {'num_iterations': len(train_loader), 'num_test_iteration': len(test_loader)}
+        iteration_info = {'num_iterations': len(train_loader), 'num_test_iterations': len(test_loader)}
         u_sr.client(client_socket, iteration_info)
         return train_loader, test_loader
 

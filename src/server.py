@@ -85,10 +85,20 @@ def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: st
     path_to_loss_file = args.results_path + dict_path + '/loss/' + loss_file
     path_to_accuracy_file = args.results_path + dict_path + '/accuracy/' + accuracy_file
 
+    header = ['Round']
+    if args.fed_flag == True: # 平均化したモデルでAccuracyを測定する場合
+        header += ['Accuracy']
+    elif args.fed_flag == False: # 各クライアントモデルでAccuracyを測定する場合
+        header += ['Average_Accuracy']
+        header += [f'Client{i+1}' for i in range(args.num_clients)]
+
     with open(path_to_loss_file, mode='w', newline='') as file:
-        pass
+        # writer = csv.writer(file)
+        # writer.writerow(header) 
+        pass       
     with open(path_to_accuracy_file, mode='w', newline='') as file:
-        pass
+        writer = csv.writer(file)
+        writer.writerow(header)
 
     return path_to_loss_file, path_to_accuracy_file
 
@@ -227,9 +237,41 @@ def main(args: argparse.ArgumentParser):
             # 平均化モデルをクライアントに送信
             for connection in connections.values():
                 u_sr.server(connection, b"SEND", client_model.to('cpu'))
-        else:
+        elif args.fed_flag == False:
             # 各クライアントでテストを行う
-            pass
+            server_model.eval()
+            with torch.no_grad():
+                accuracy_dict = {}
+                accuracy_dict['Round'] = round+1
+                accuracy_dict['Average_Accuracy'] = None
+                for client_id, connection in connections.items():
+                    correct = 0
+                    total = 0
+                    for i in tqdm(range(num_test_iterations)):
+                        client_data = u_sr.server(connection, b'REQUEST')
+                        smashed_data = client_data['smashed_data'].to(device)
+                        labels = client_data['labels'].to(device)
+                        output = server_model(smashed_data)
+                        _, predicted = torch.max(output, 1)
+                        total += labels.size(0)
+                        correct += (predicted == labels).sum().item()
+                    accuracy = correct / total * 100
+                    accuracy_dict[client_id] = accuracy
+                    u_sr.server(connection, b'SEND', accuracy)
+            print('Round: {}'.format(round+1), end=',')
+            accuracy_list = []
+            for idx in range(args.num_clients):
+                if idx < args.num_clients-1:
+                    print('Client{}: {}'.format(idx+1, accuracy_dict['Client {}'.format(idx+1)]), end=', ')
+                elif idx == args.num_clients-1:
+                    print('Client{}: {}'.format(idx+1, accuracy_dict['Client {}'.format(idx+1)]))
+                accuracy_list.append(accuracy_dict['Client {}'.format(idx+1)])
+            accuracy_dict['Average_Accuracy'] = sum(accuracy_list) / len(accuracy_list)
+            print('Average Accuracy: {}'.format(accuracy_dict['Average_Accuracy']))
+            values = accuracy_dict.values()
+            with open(accuracy_path, 'a', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(values)
 
 
     for client_id, connection in connections.items():

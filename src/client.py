@@ -96,9 +96,23 @@ def main(args: argparse.ArgumentParser):
             u_sr.client(client_socket, client_model)
             client_model.load_state_dict(u_sr.client(client_socket).state_dict())
             client_model = client_model.to(device)
-        else:
-            # 各クライアントでテストを行う
-            pass
+        elif args.fed_flag == False:
+            with torch.no_grad():
+                for images, labels in tqdm(test_loader):
+
+                    send_data_dict = {'smashed_data': None, 'labels': None}
+
+                    images = images.to(device)
+                    labels = labels.to(device)
+
+                    smashed_data = client_model(images)
+                    send_data_dict['smashed_data'] = smashed_data
+                    send_data_dict['labels'] = labels
+
+                    u_sr.client(client_socket, send_data_dict)
+                
+                accuracy = u_sr.client(client_socket)
+                print('Round: {}, Accuracy: {:.4f}'.format(round+1, accuracy))
 
 
     # 通信終了
