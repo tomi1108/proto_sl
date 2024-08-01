@@ -1,7 +1,7 @@
 #!/bin/bash
 
-anaconda_env=openpcdet
-# anaconda_env=faiss
+# anaconda_env=openpcdet
+anaconda_env=faiss
 src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
