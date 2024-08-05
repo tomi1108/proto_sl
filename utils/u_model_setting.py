@@ -7,18 +7,29 @@ class Server_Model(nn.Module):
     def __init__(self, args, model):
         super(Server_Model, self).__init__()
 
+        self.args = args
+
         if args.model_name == 'mobilenet_v2':
-            self.model = nn.Sequential(
+            self.model1 = nn.Sequential(
                 model.features[6:],
                 nn.Flatten(),
-                model.classifier
+                model.classifier[0],
+                model.classifier[1]
+            )
+            self.model2 = nn.Sequential(
+                model.classifier[2],
+                model.classifier[3]
             )
         else:
             raise Exception(f"The model {args.model_name} is not covered")
     
     def forward(self, x):
-        output = self.model(x)
-        return output
+        output1 = self.model1(x)
+        output2 = self.model2(output1)
+        if self.args.proto_flag == True:
+            return output1, output2
+        else:
+            return None, output2
 
 def model_setting(args: argparse.ArgumentParser, num_class: int):
 
