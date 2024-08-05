@@ -19,6 +19,7 @@ import utils.u_send_receive as u_sr
 import utils.u_data_setting as u_dset
 import utils.u_print_setting as u_print
 import utils.u_model_setting as u_mset
+import utils.u_prototype as u_proto
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -93,9 +94,12 @@ def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: st
         header += [f'Client{i+1}' for i in range(args.num_clients)]
 
     with open(path_to_loss_file, mode='w', newline='') as file:
-        # writer = csv.writer(file)
-        # writer.writerow(header) 
-        pass       
+        writer = csv.writer(file)
+        if args.proto_flag:
+            writer.writerow(['iteration', 'loss', 'proto loss', 'total loss'])
+        else:
+            writer.writerow(['iteration', 'loss'])
+
     with open(path_to_accuracy_file, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(header)
@@ -151,11 +155,17 @@ def main(args: argparse.ArgumentParser):
     server_model = server_model.to(device)
     client_model = client_model.to(device)
 
+    # プロトタイプを定義
+    if args.proto_flag:
+        prototype = u_proto.prototype(args, num_class)
+
     # クライアントにモデルを送信
     for connection in connections.values():
         u_sr.server(connection, b"SEND", client_model)
     
 
+    current_epoch = 0
+    total_epoch = args.num_rounds * args.num_epochs
     # 学習開始
     for round in range(args.num_rounds):
 
@@ -163,12 +173,15 @@ def main(args: argparse.ArgumentParser):
         print("--- Round {}/{} ---".format(round+1, args.num_rounds))
 
         for epoch in range(args.num_epochs):
-
+            
+            current_epoch += 1
             print("--- Epoch {}/{} ---".format(epoch+1, args.num_epochs))
 
             for i in tqdm(range(num_iterations)):
 
                 loss_list = []
+                total_loss_list = []
+                proto_loss_list = []
                 for connection in connections.values():
 
                     client_data = u_sr.server(connection, b"REQUEST")
@@ -180,23 +193,42 @@ def main(args: argparse.ArgumentParser):
                         raise Exception("client_data has None object: {}".format(client_data))
 
                     optimizer.zero_grad()
-                    outputs = server_model(smashed_data)
-                    loss = criterion(outputs, labels)
+                    p_output, output = server_model(smashed_data)
+                    loss = criterion(output, labels)
+
+                    if args.proto_flag:
+                        proto_loss = prototype.compute_prototypes(p_output, labels) # ここでプロトタイプの計算を行っている
+                        if prototype.use_proto:
+                            total_loss = loss * (current_epoch / total_epoch) + proto_loss * (1 - current_epoch / total_epoch)
+                            total_loss_list.append(total_loss.item())
+                            proto_loss_list.append(proto_loss.item())
+                            total_loss.backward()
+                        else:
+                            loss.backward()
+                    else:
+                        loss.backward()
 
                     loss_list.append(loss.item())
-                    loss.backward()
                     optimizer.step()
 
                     u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
 
 
                 if i % 100 == 0:
-                    average_loss = sum(loss_list) / len(loss_list)
-                    print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
                     cur_iter = i + num_iterations * epoch + round * num_iterations * args.num_epochs
-                    with open(loss_path, 'a', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow([cur_iter, average_loss])
+                    average_loss = sum(loss_list) / len(loss_list)
+                    if prototype.use_proto:
+                        average_total_loss = sum(total_loss_list) / len(total_loss_list)
+                        average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
+                        print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
+                        with open(loss_path, 'a', newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
+                    else:
+                        print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
+                        with open(loss_path, 'a', newline='') as f:
+                            writer = csv.writer(f)
+                            writer.writerow([cur_iter, average_loss])
         
         if args.fed_flag == True:
             # 平均化
@@ -223,7 +255,7 @@ def main(args: argparse.ArgumentParser):
                 for images, labels in tqdm(test_loader):
                     images = images.to(device)
                     labels = labels.to(device)
-                    outputs = server_model(client_model(images))
+                    p_outputs, outputs = server_model(client_model(images))
                     _, predicted = torch.max(outputs.data, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
@@ -251,7 +283,7 @@ def main(args: argparse.ArgumentParser):
                         client_data = u_sr.server(connection, b'REQUEST')
                         smashed_data = client_data['smashed_data'].to(device)
                         labels = client_data['labels'].to(device)
-                        output = server_model(smashed_data)
+                        p_outputs, output = server_model(smashed_data)
                         _, predicted = torch.max(output, 1)
                         total += labels.size(0)
                         correct += (predicted == labels).sum().item()
