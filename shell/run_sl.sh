@@ -1,7 +1,7 @@
 #!/bin/bash
 
-anaconda_env=openpcdet
-# anaconda_env=faiss
+# anaconda_env=openpcdet
+anaconda_env=faiss
 src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
@@ -15,16 +15,21 @@ seed=42
 num_clients=2
 num_rounds=50
 num_epochs=5
-batch_sizes=(128 64)
+batch_sizes=(128)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
 temperature=0.07
+data_partitions=(0) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
+
+fed_flag=True
+
+proto_flag=True
+queue_size=16384
 output_size=64
-data_partitions=(5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
-fed_flag=False
-proto_flag=False
+
 self_kd_flag=False
+
 current_date=$(date +%Y-%m-%d)
 
 source ~/anaconda3/etc/profile.d/conda.sh
@@ -58,6 +63,7 @@ for data_partition in "${data_partitions[@]}"; do
             --dataset_type ${dataset_type} \
             --results_path ${results_path} \
             --date ${current_date} \
+            --queue_size ${queue_size} \
         "
 
         server_command="python3 ${server_file_name} ${params}"
