@@ -10,7 +10,7 @@ dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=3333
+port_number=1111
 seed=42
 num_clients=2
 num_rounds=50
@@ -24,9 +24,11 @@ data_partitions=(5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: 
 
 fed_flag=True
 
-proto_flag=True
+proto_flag=False
 queue_size=16384
 output_size=64
+
+con_flag=True # モデル対照学習を使用
 
 self_kd_flag=False
 
@@ -57,6 +59,7 @@ for data_partition in "${data_partitions[@]}"; do
             --data_partition ${data_partition} \
             --fed_flag ${fed_flag} \
             --proto_flag ${proto_flag} \
+            --con_flag ${con_flag} \
             --self_kd_flag ${self_kd_flag} \
             --model_name ${model_name} \
             --dataset_path ${dataset_path} \

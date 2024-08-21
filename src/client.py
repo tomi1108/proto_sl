@@ -2,6 +2,7 @@ import sys
 sys.path.append('./../')
 
 import random
+import copy
 import torch
 import torch.nn as nn
 import numpy as np
@@ -57,7 +58,15 @@ def main(args: argparse.ArgumentParser):
 
     # データローダの作成
     train_loader, test_loader = u_dset.client_data_setting(args, client_socket)
-    
+
+    # MOON用のモデルを定義
+    if args.con_flag == True:
+        previous_client_model = None
+        global_client_model = None
+        projection_head = u_sr.client(client_socket).to(device)
+        criterion = nn.CrossEntropyLoss()
+        cos = nn.CosineSimilarity(dim=-1)
+
     # クライアントモデルを受信
     client_model, optimizer = set_model(args, client_socket)
     client_model = client_model.to(device)
@@ -79,23 +88,65 @@ def main(args: argparse.ArgumentParser):
                 images = images.to(device)
                 labels = labels.to(device)
 
-                optimizer.zero_grad()
                 smashed_data = client_model(images)
                 send_data_dict['smashed_data'] = smashed_data.to('cpu')
                 send_data_dict['labels'] = labels.to('cpu')
                 u_sr.client(client_socket, send_data_dict)
 
+                if args.con_flag == True and round > 0:
+
+                    optimizer.zero_grad()
+                    smashed_output = projection_head(smashed_data.to(device))
+                    previous_output = projection_head(previous_client_model(images))
+                    global_output = projection_head(global_client_model(images))
+
+                    pos = cos(smashed_output, global_output)
+                    logits = pos.reshape(-1, 1)
+                    neg = cos(smashed_output, previous_output)
+                    logits = torch.cat((logits, neg.reshape(-1, 1)), dim=1)
+
+                    logits /= 0.5
+                    logits_labels = torch.zeros(images.size(0)).to(device).long()
+
+                    con_loss = criterion(logits, logits_labels)
+                    con_loss.backward(retain_graph=True)
+                    grads1 = [param.grad.clone() for param in client_model.parameters()]
+
+                    if i % 100 == 0:
+                        print('con_loss: ', con_loss.item())
+
+                optimizer.zero_grad()
                 gradients = u_sr.client(client_socket).to(device)
                 smashed_data.grad = gradients.clone().detach()
                 smashed_data.backward(gradient=smashed_data.grad)
+
+                if args.con_flag == True and round > 0:
+                    grads2 = [param.grad.clone() for param in client_model.parameters()]
+                    combine_grads = [(g1 + g2) / 2 for g1, g2 in zip(grads1, grads2)]
+                    for param, grad in zip(client_model.parameters(), combine_grads):
+                        param.grad = grad
+
                 optimizer.step()
         
         if args.fed_flag == True:
             # 平均化
             client_model = client_model.to('cpu')
+
+            if args.con_flag == True:
+                previous_client_model = copy.deepcopy(client_model).to(device)
+            
             u_sr.client(client_socket, client_model)
             client_model.load_state_dict(u_sr.client(client_socket).state_dict())
             client_model = client_model.to(device)
+
+            if args.con_flag == True:
+                global_client_model = copy.deepcopy(client_model)
+                for param in previous_client_model.parameters():
+                    param.requires_grad = False
+                for param in global_client_model.parameters():
+                    param.requires_grad = False
+
+
         elif args.fed_flag == False:
             with torch.no_grad():
                 for images, labels in tqdm(test_loader):
