@@ -83,6 +83,7 @@ def create_directory(path: str):
         print(f'Directory {path+images} created')
 
 def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: str, accuracy_file: str):
+
     path_to_loss_file = args.results_path + dict_path + '/loss/' + loss_file
     path_to_accuracy_file = args.results_path + dict_path + '/accuracy/' + accuracy_file
 
@@ -158,11 +159,20 @@ def main(args: argparse.ArgumentParser):
     # プロトタイプを定義
     if args.proto_flag:
         prototype = u_proto.prototype(args, num_class)
-
+    
+    # MOON用の次元削減線形層を定義と送信
+    if args.con_flag == True:
+        protjection_head = nn.Sequential(
+            nn.Flatten(),
+            nn.Linear(512, 64)
+        )
+        for connection in connections.values():
+            u_sr.server(connection, b"SEND", protjection_head)
+    
     # クライアントにモデルを送信
     for connection in connections.values():
         u_sr.server(connection, b"SEND", client_model)
-    
+
 
     current_epoch = 0
     total_epoch = args.num_rounds * args.num_epochs
@@ -217,18 +227,28 @@ def main(args: argparse.ArgumentParser):
                 if i % 100 == 0:
                     cur_iter = i + num_iterations * epoch + round * num_iterations * args.num_epochs
                     average_loss = sum(loss_list) / len(loss_list)
-                    if prototype.use_proto:
-                        average_total_loss = sum(total_loss_list) / len(total_loss_list)
-                        average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
-                        print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
-                        with open(loss_path, 'a', newline='') as f:
-                            writer = csv.writer(f)
-                            writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
+                    if args.proto_flag:
+                        if prototype.use_proto:
+                            average_total_loss = sum(total_loss_list) / len(total_loss_list)
+                            average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
+                            print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
+
+                            with open(loss_path, 'a', newline='') as f:
+                                writer = csv.writer(f)
+                                writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
+                        else:
+                            print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
+
+                            with open(loss_path, 'a', newline='') as f:
+                                writer = csv.writer(f)
+                                writer.writerow([cur_iter, average_loss])
                     else:
                         print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
+
                         with open(loss_path, 'a', newline='') as f:
                             writer = csv.writer(f)
                             writer.writerow([cur_iter, average_loss])
+
         
         if args.fed_flag == True:
             # 平均化
@@ -269,6 +289,7 @@ def main(args: argparse.ArgumentParser):
             # 平均化モデルをクライアントに送信
             for connection in connections.values():
                 u_sr.server(connection, b"SEND", client_model.to('cpu'))
+                
         elif args.fed_flag == False:
             # 各クライアントでテストを行う
             server_model.eval()
@@ -301,6 +322,7 @@ def main(args: argparse.ArgumentParser):
             accuracy_dict['Average_Accuracy'] = sum(accuracy_list) / len(accuracy_list)
             print('Average Accuracy: {}'.format(accuracy_dict['Average_Accuracy']))
             values = accuracy_dict.values()
+
             with open(accuracy_path, 'a', newline='') as f:
                 writer = csv.writer(f)
                 writer.writerow(values)
