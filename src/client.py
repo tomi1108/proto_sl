@@ -122,7 +122,7 @@ def main(args: argparse.ArgumentParser):
 
                 if args.con_flag == True and round > 0:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
-                    combine_grads = [(g1 + g2) / 2 for g1, g2 in zip(grads1, grads2)]
+                    combine_grads = [g1 * 5 + g2 for g1, g2 in zip(grads1, grads2)]
                     for param, grad in zip(client_model.parameters(), combine_grads):
                         param.grad = grad
 
