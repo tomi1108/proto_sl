@@ -5,6 +5,7 @@ import random
 import csv
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import torchvision.models as models
 import torchvision.datasets as dsets
@@ -162,13 +163,13 @@ def main(args: argparse.ArgumentParser):
     
     # MOON用の次元削減線形層を定義と送信
     if args.con_flag == True:
-        protjection_head = nn.Sequential(
+        projection_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(512, 64)
         )
         for connection in connections.values():
-            u_sr.server(connection, b"SEND", protjection_head)
-    
+            u_sr.server(connection, b"SEND", projection_head)
+
     # クライアントにモデルを送信
     for connection in connections.values():
         u_sr.server(connection, b"SEND", client_model)
@@ -220,6 +221,17 @@ def main(args: argparse.ArgumentParser):
 
                     loss_list.append(loss.item())
                     optimizer.step()
+
+                    # if args.con_flag == True:
+                    #     ph_input = smashed_data.detach().to(device)
+                    #     projection_head = projection_head.to(device)
+                    #     ph_output = projection_head(ph_input)
+                    #     ph_loss = F.kl_div(F.log_softmax(ph_output / 3.0, dim=1),
+                    #                        F.softmax(p_output.detach() / 3.0, dim=1),
+                    #                        reduction='batchmean') * (3.0 ** 2)
+                    #     ph_loss.backward()
+                    #     ph_optimizer.step()
+
 
                     u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
 
@@ -289,6 +301,7 @@ def main(args: argparse.ArgumentParser):
             # 平均化モデルをクライアントに送信
             for connection in connections.values():
                 u_sr.server(connection, b"SEND", client_model.to('cpu'))
+
                 
         elif args.fed_flag == False:
             # 各クライアントでテストを行う
