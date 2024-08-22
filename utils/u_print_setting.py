@@ -35,6 +35,8 @@ def print_setting(args: argparse.ArgumentParser):
         train_mode = train_mode + '_SFL'
     if args.proto_flag == True:
         train_mode = train_mode + '_Proto'
+    if args.con_flag == True:
+        train_mode = train_mode + '_Con'
     if args.self_kd_flag == True:
         train_mode = train_mode + '_Self-KD'
     
