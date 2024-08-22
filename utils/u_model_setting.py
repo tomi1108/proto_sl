@@ -26,10 +26,7 @@ class Server_Model(nn.Module):
     def forward(self, x):
         output1 = self.model1(x)
         output2 = self.model2(output1)
-        if self.args.proto_flag == True:
-            return output1, output2
-        else:
-            return None, output2
+        return output1, output2
 
 def model_setting(args: argparse.ArgumentParser, num_class: int):
 
