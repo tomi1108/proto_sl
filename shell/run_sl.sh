@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# anaconda_env=openpcdet
-anaconda_env=faiss
+anaconda_env=openpcdet
+# anaconda_env=faiss
 src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
@@ -10,12 +10,12 @@ dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=2222
+port_number=3333
 seed=42
 num_clients=2
-num_rounds=50
-num_epochs=5
-batch_sizes=(128)
+num_rounds=25
+num_epochs=10
+batch_sizes=(64)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
