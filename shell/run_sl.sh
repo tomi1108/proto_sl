@@ -10,7 +10,7 @@ dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=1111
+port_number=3333
 seed=42
 num_clients=2
 num_rounds=25
