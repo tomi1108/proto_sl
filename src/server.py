@@ -136,14 +136,15 @@ def main(args: argparse.ArgumentParser):
     # シードを設定して再現性を持たせる
     set_seed(args.seed)
 
-    # 初期設定を出力
-    dict_path, loss_file_name, accuracy_file_name = u_print.print_setting(args)
-    
-    # 結果を格納するディレクトリを作成
-    create_directory(args.results_path + dict_path)
+    if args.save_data == True:
+        # 初期設定を出力
+        dict_path, loss_file_name, accuracy_file_name = u_print.print_setting(args)
+        
+        # 結果を格納するディレクトリを作成
+        create_directory(args.results_path + dict_path)
 
-    # 結果を出力くするファイルを初期化
-    loss_path, accuracy_path = set_output_file(args, dict_path, loss_file_name, accuracy_file_name)
+        # 結果を出力くするファイルを初期化
+        loss_path, accuracy_path = set_output_file(args, dict_path, loss_file_name, accuracy_file_name)
 
     # クライアントと通信開始
     print("========== Server ==========\n")
@@ -222,17 +223,6 @@ def main(args: argparse.ArgumentParser):
                     loss_list.append(loss.item())
                     optimizer.step()
 
-                    # if args.con_flag == True:
-                    #     ph_input = smashed_data.detach().to(device)
-                    #     projection_head = projection_head.to(device)
-                    #     ph_output = projection_head(ph_input)
-                    #     ph_loss = F.kl_div(F.log_softmax(ph_output / 3.0, dim=1),
-                    #                        F.softmax(p_output.detach() / 3.0, dim=1),
-                    #                        reduction='batchmean') * (3.0 ** 2)
-                    #     ph_loss.backward()
-                    #     ph_optimizer.step()
-
-
                     u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
 
 
@@ -245,21 +235,24 @@ def main(args: argparse.ArgumentParser):
                             average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
                             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
 
-                            with open(loss_path, 'a', newline='') as f:
-                                writer = csv.writer(f)
-                                writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
+                            if args.save_data == True:
+                                with open(loss_path, 'a', newline='') as f:
+                                    writer = csv.writer(f)
+                                    writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
                         else:
                             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
-                            with open(loss_path, 'a', newline='') as f:
-                                writer = csv.writer(f)
-                                writer.writerow([cur_iter, average_loss])
+                            if args.save_data == True:
+                                with open(loss_path, 'a', newline='') as f:
+                                    writer = csv.writer(f)
+                                    writer.writerow([cur_iter, average_loss])
                     else:
                         print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
-                        with open(loss_path, 'a', newline='') as f:
-                            writer = csv.writer(f)
-                            writer.writerow([cur_iter, average_loss])
+                        if args.save_data == True:
+                            with open(loss_path, 'a', newline='') as f:
+                                writer = csv.writer(f)
+                                writer.writerow([cur_iter, average_loss])
 
         
         if args.fed_flag == True:
@@ -294,9 +287,10 @@ def main(args: argparse.ArgumentParser):
                 accuracy = 100 * correct / total
                 print("Round: {}, Accuracy: {:.2f}%".format(round+1, accuracy))
 
-                with open(accuracy_path, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow([round+1, accuracy])
+                if args.save_data == True:
+                    with open(accuracy_path, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([round+1, accuracy])
             
             # 平均化モデルをクライアントに送信
             for connection in connections.values():
@@ -336,9 +330,10 @@ def main(args: argparse.ArgumentParser):
             print('Average Accuracy: {}'.format(accuracy_dict['Average_Accuracy']))
             values = accuracy_dict.values()
 
-            with open(accuracy_path, 'a', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(values)
+            if args.save_data == True:
+                with open(accuracy_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(values)
 
 
     for client_id, connection in connections.items():
