@@ -10,12 +10,12 @@ dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=1111
+port_number=2222
 seed=42
 num_clients=2
 num_rounds=25
 num_epochs=10
-batch_sizes=(64)
+batch_sizes=(128)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
