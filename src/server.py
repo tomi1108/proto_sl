@@ -5,6 +5,7 @@ import random
 import csv
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import numpy as np
 import torchvision.models as models
 import torchvision.datasets as dsets
@@ -99,7 +100,7 @@ def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: st
         if args.proto_flag:
             writer.writerow(['iteration', 'loss', 'proto loss', 'total loss'])
         else:
-            writer.writerow(['iteration', 'loss'])
+            writer.writerow(['Epoch', 'Loss'])
 
     with open(path_to_accuracy_file, mode='w', newline='') as file:
         writer = csv.writer(file)
@@ -135,14 +136,15 @@ def main(args: argparse.ArgumentParser):
     # シードを設定して再現性を持たせる
     set_seed(args.seed)
 
-    # 初期設定を出力
-    dict_path, loss_file_name, accuracy_file_name = u_print.print_setting(args)
-    
-    # 結果を格納するディレクトリを作成
-    create_directory(args.results_path + dict_path)
+    if args.save_data == True:
+        # 初期設定を出力
+        dict_path, loss_file_name, accuracy_file_name = u_print.print_setting(args)
+        
+        # 結果を格納するディレクトリを作成
+        create_directory(args.results_path + dict_path)
 
-    # 結果を出力くするファイルを初期化
-    loss_path, accuracy_path = set_output_file(args, dict_path, loss_file_name, accuracy_file_name)
+        # 結果を出力くするファイルを初期化
+        loss_path, accuracy_path = set_output_file(args, dict_path, loss_file_name, accuracy_file_name)
 
     # クライアントと通信開始
     print("========== Server ==========\n")
@@ -162,13 +164,13 @@ def main(args: argparse.ArgumentParser):
     
     # MOON用の次元削減線形層を定義と送信
     if args.con_flag == True:
-        protjection_head = nn.Sequential(
+        projection_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(512, 64)
         )
         for connection in connections.values():
-            u_sr.server(connection, b"SEND", protjection_head)
-    
+            u_sr.server(connection, b"SEND", projection_head)
+
     # クライアントにモデルを送信
     for connection in connections.values():
         u_sr.server(connection, b"SEND", client_model)
@@ -185,11 +187,11 @@ def main(args: argparse.ArgumentParser):
         for epoch in range(args.num_epochs):
             
             current_epoch += 1
+            loss_list = []
             print("--- Epoch {}/{} ---".format(epoch+1, args.num_epochs))
 
             for i in tqdm(range(num_iterations)):
 
-                loss_list = []
                 total_loss_list = []
                 proto_loss_list = []
                 for connection in connections.values():
@@ -222,32 +224,36 @@ def main(args: argparse.ArgumentParser):
                     optimizer.step()
 
                     u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
+                
 
+                # if i % 100 == 0:
+                #     cur_iter = i + num_iterations * epoch + round * num_iterations * args.num_epochs
+                #     average_loss = sum(loss_list) / len(loss_list)
+                #     if args.proto_flag:
+                #         if prototype.use_proto:
+                #             average_total_loss = sum(total_loss_list) / len(total_loss_list)
+                #             average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
+                #             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
 
-                if i % 100 == 0:
-                    cur_iter = i + num_iterations * epoch + round * num_iterations * args.num_epochs
-                    average_loss = sum(loss_list) / len(loss_list)
-                    if args.proto_flag:
-                        if prototype.use_proto:
-                            average_total_loss = sum(total_loss_list) / len(total_loss_list)
-                            average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
-                            print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
+                #             if args.save_data == True:
+                #                 with open(loss_path, 'a', newline='') as f:
+                #                     writer = csv.writer(f)
+                #                     writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
+                #         else:
+                #             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
-                            with open(loss_path, 'a', newline='') as f:
-                                writer = csv.writer(f)
-                                writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
-                        else:
-                            print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
+                #             if args.save_data == True:
+                #                 with open(loss_path, 'a', newline='') as f:
+                #                     writer = csv.writer(f)
+                #                     writer.writerow([cur_iter, average_loss])
+                #     else:
+                #         print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
-                            with open(loss_path, 'a', newline='') as f:
-                                writer = csv.writer(f)
-                                writer.writerow([cur_iter, average_loss])
-                    else:
-                        print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
-
-                        with open(loss_path, 'a', newline='') as f:
-                            writer = csv.writer(f)
-                            writer.writerow([cur_iter, average_loss])
+            print('loss: ', np.mean(loss_list))
+            if args.save_data:
+                with open(loss_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([current_epoch, np.mean(loss_list)])
 
         
         if args.fed_flag == True:
@@ -282,13 +288,15 @@ def main(args: argparse.ArgumentParser):
                 accuracy = 100 * correct / total
                 print("Round: {}, Accuracy: {:.2f}%".format(round+1, accuracy))
 
-                with open(accuracy_path, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow([round+1, accuracy])
+                if args.save_data == True:
+                    with open(accuracy_path, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([round+1, accuracy])
             
             # 平均化モデルをクライアントに送信
             for connection in connections.values():
                 u_sr.server(connection, b"SEND", client_model.to('cpu'))
+
                 
         elif args.fed_flag == False:
             # 各クライアントでテストを行う
@@ -323,9 +331,10 @@ def main(args: argparse.ArgumentParser):
             print('Average Accuracy: {}'.format(accuracy_dict['Average_Accuracy']))
             values = accuracy_dict.values()
 
-            with open(accuracy_path, 'a', newline='') as f:
-                writer = csv.writer(f)
-                writer.writerow(values)
+            if args.save_data == True:
+                with open(accuracy_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(values)
 
 
     for client_id, connection in connections.items():

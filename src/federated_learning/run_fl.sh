@@ -1,46 +1,32 @@
 #!/bin/bash
 
-anaconda_env=openpcdet
-# anaconda_env=faiss
+# anaconda_env=openpcdet
+anaconda_env=faiss
 src_path=../src/
-dataset_path=../dataset/
-results_path=../results/
+dataset_path=../../dataset/
+results_path=../../results/
 model_name=mobilenet_v2
 dataset_type=cifar10
-server_file_name=server.py
-client_file_name=client.py
+server_file_name=fl_server.py
+client_file_name=fl_client.py
 
-port_number=3333
+port_number=1111
 seed=42
 num_clients=2
-num_rounds=25
-num_epochs=10
+num_rounds=50
+num_epochs=5
 batch_sizes=(128)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
-temperature=0.07
-data_partitions=(1 4) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
-
-fed_flag=True
-
-proto_flag=False
-queue_size=16384
-output_size=64
-
-con_flag=True # モデル対照学習を使用
-
-self_kd_flag=False
+data_partitions=(1) # 0:IID, 4:Non-IID(Easy), 5:Non-IID(Moderate), 1:Non-IID(Hard)
 
 current_date=$(date +%Y-%m-%d)
 save_data=False
 
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ${anaconda_env}
-cd ${src_path}
 
-# for batch_size in "${batch_sizes[@]}"; do
-#     for data_partition in "${data_partitions[@]}"; do
 for data_partition in "${data_partitions[@]}"; do
     for batch_size in "${batch_sizes[@]}"; do
 
@@ -55,19 +41,12 @@ for data_partition in "${data_partitions[@]}"; do
             --lr ${learning_rate} \
             --momentum ${momentum} \
             --weight_decay ${weight_decay} \
-            --temperature ${temperature} \
-            --output_size ${output_size} \
             --data_partition ${data_partition} \
-            --fed_flag ${fed_flag} \
-            --proto_flag ${proto_flag} \
-            --con_flag ${con_flag} \
-            --self_kd_flag ${self_kd_flag} \
             --model_name ${model_name} \
             --dataset_path ${dataset_path} \
             --dataset_type ${dataset_type} \
             --results_path ${results_path} \
             --date ${current_date} \
-            --queue_size ${queue_size} \
             --save_data ${save_data} \
         "
 

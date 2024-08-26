@@ -2,6 +2,8 @@ import sys
 sys.path.append('./../')
 
 import random
+import os
+import time
 import copy
 import torch
 import torch.nn as nn
@@ -19,6 +21,10 @@ import utils.u_send_receive as u_sr
 import utils.u_data_setting as u_dset
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# device = 'cpu'
+pid = os.getpid()
+print(f'The process ID (PID) is: {pid}')
+time.sleep(5)
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -87,7 +93,7 @@ def main(args: argparse.ArgumentParser):
                 send_data_dict = {'smashed_data': None, 'labels': None}
                 images = images.to(device)
                 labels = labels.to(device)
-
+                
                 smashed_data = client_model(images)
                 send_data_dict['smashed_data'] = smashed_data.to('cpu')
                 send_data_dict['labels'] = labels.to('cpu')
@@ -96,6 +102,7 @@ def main(args: argparse.ArgumentParser):
                 if args.con_flag == True and round > 0:
 
                     optimizer.zero_grad()
+                    
                     smashed_output = projection_head(smashed_data.to(device))
                     previous_output = projection_head(previous_client_model(images))
                     global_output = projection_head(global_client_model(images))
@@ -122,7 +129,7 @@ def main(args: argparse.ArgumentParser):
 
                 if args.con_flag == True and round > 0:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
-                    combine_grads = [(g1 + g2) / 2 for g1, g2 in zip(grads1, grads2)]
+                    combine_grads = [5 * g1 + g2 for g1, g2 in zip(grads1, grads2)]
                     for param, grad in zip(client_model.parameters(), combine_grads):
                         param.grad = grad
 
