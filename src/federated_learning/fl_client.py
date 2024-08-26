@@ -49,9 +49,6 @@ def main(args: argparse.ArgumentParser):
     client_socket, client_id = set_connection(args)
     print("\n========== Client {} ==========\n".format(client_id))
 
-    if args.save_data:
-        loss_file_path = u_sr.client(client_socket)
-
     train_loader = u_dset.fl_client_setting(args, client_socket)
 
     model = u_sr.client(client_socket).to(device)
@@ -62,6 +59,7 @@ def main(args: argparse.ArgumentParser):
                                 )
     criterion = nn.CrossEntropyLoss()
     
+    current_epoch = 0
     for round in range(args.num_rounds):
 
         model.train()
@@ -69,6 +67,7 @@ def main(args: argparse.ArgumentParser):
 
         for epoch in range(args.num_epochs):
             
+            current_epoch += 1
             loss_list = []
             print("--- Epoch {}/{} ---".format(epoch+1, args.num_epochs))
 
@@ -84,9 +83,7 @@ def main(args: argparse.ArgumentParser):
             
             print("Round: {}, Epoch: {}, Loss: {}".format(round+1, epoch+1, np.mean(loss_list)))
             if args.save_data:
-                with open(loss_file_path, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow([epoch+1, np.mean(loss_list)])
+                u_sr.client(client_socket, np.mean(loss_list))
             
         model = model.to('cpu')
         u_sr.client(client_socket, model)
