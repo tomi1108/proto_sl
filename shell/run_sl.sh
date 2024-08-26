@@ -10,11 +10,11 @@ dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=3333
+port_number=1111
 seed=42
 num_clients=2
-num_rounds=50
-num_epochs=5
+num_rounds=25
+num_epochs=10
 batch_sizes=(128)
 learning_rate=0.01
 momentum=0.9
@@ -28,7 +28,7 @@ proto_flag=False
 queue_size=16384
 output_size=64
 
-con_flag=True # モデル対照学習を使用
+con_flag=False # モデル対照学習を使用
 
 self_kd_flag=False
 
