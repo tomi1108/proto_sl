@@ -100,7 +100,7 @@ def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: st
         if args.proto_flag:
             writer.writerow(['iteration', 'loss', 'proto loss', 'total loss'])
         else:
-            writer.writerow(['iteration', 'loss'])
+            writer.writerow(['Epoch', 'Loss'])
 
     with open(path_to_accuracy_file, mode='w', newline='') as file:
         writer = csv.writer(file)
@@ -187,11 +187,11 @@ def main(args: argparse.ArgumentParser):
         for epoch in range(args.num_epochs):
             
             current_epoch += 1
+            loss_list = []
             print("--- Epoch {}/{} ---".format(epoch+1, args.num_epochs))
 
             for i in tqdm(range(num_iterations)):
 
-                loss_list = []
                 total_loss_list = []
                 proto_loss_list = []
                 for connection in connections.values():
@@ -224,35 +224,36 @@ def main(args: argparse.ArgumentParser):
                     optimizer.step()
 
                     u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
+                
 
+                # if i % 100 == 0:
+                #     cur_iter = i + num_iterations * epoch + round * num_iterations * args.num_epochs
+                #     average_loss = sum(loss_list) / len(loss_list)
+                #     if args.proto_flag:
+                #         if prototype.use_proto:
+                #             average_total_loss = sum(total_loss_list) / len(total_loss_list)
+                #             average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
+                #             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
 
-                if i % 100 == 0:
-                    cur_iter = i + num_iterations * epoch + round * num_iterations * args.num_epochs
-                    average_loss = sum(loss_list) / len(loss_list)
-                    if args.proto_flag:
-                        if prototype.use_proto:
-                            average_total_loss = sum(total_loss_list) / len(total_loss_list)
-                            average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
-                            print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
+                #             if args.save_data == True:
+                #                 with open(loss_path, 'a', newline='') as f:
+                #                     writer = csv.writer(f)
+                #                     writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
+                #         else:
+                #             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
-                            if args.save_data == True:
-                                with open(loss_path, 'a', newline='') as f:
-                                    writer = csv.writer(f)
-                                    writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
-                        else:
-                            print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
+                #             if args.save_data == True:
+                #                 with open(loss_path, 'a', newline='') as f:
+                #                     writer = csv.writer(f)
+                #                     writer.writerow([cur_iter, average_loss])
+                #     else:
+                #         print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
-                            if args.save_data == True:
-                                with open(loss_path, 'a', newline='') as f:
-                                    writer = csv.writer(f)
-                                    writer.writerow([cur_iter, average_loss])
-                    else:
-                        print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
-
-                        if args.save_data == True:
-                            with open(loss_path, 'a', newline='') as f:
-                                writer = csv.writer(f)
-                                writer.writerow([cur_iter, average_loss])
+            print('loss: ', np.mean(loss_list))
+            if args.save_data:
+                with open(loss_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow([current_epoch, np.mean(loss_list)])
 
         
         if args.fed_flag == True:
