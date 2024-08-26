@@ -13,8 +13,8 @@ client_file_name=client.py
 port_number=3333
 seed=42
 num_clients=2
-num_rounds=25
-num_epochs=10
+num_rounds=50
+num_epochs=5
 batch_sizes=(128)
 learning_rate=0.01
 momentum=0.9
@@ -33,6 +33,7 @@ con_flag=True # モデル対照学習を使用
 self_kd_flag=False
 
 current_date=$(date +%Y-%m-%d)
+save_data=False
 
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ${anaconda_env}
@@ -67,6 +68,7 @@ for data_partition in "${data_partitions[@]}"; do
             --results_path ${results_path} \
             --date ${current_date} \
             --queue_size ${queue_size} \
+            --save_data ${save_data} \
         "
 
         server_command="python3 ${server_file_name} ${params}"
