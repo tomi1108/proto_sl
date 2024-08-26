@@ -63,13 +63,10 @@ def main(args: argparse.ArgumentParser):
         dict_path, loss_file_name, accuracy_file_name = u_print.fl_print_setting(args)
         u_print.create_directory(args.results_path + dict_path)
         loss_file_path, accuracy_file_path = u_print.fl_set_output_file(args, dict_path, loss_file_name, accuracy_file_name)
-        for connection in connections.values():
-            u_sr.server(connection, b"SEND", loss_file_path)
-        
 
     print("========== Server ==========")
     server_socket, connections = set_connection(args)
-
+    
     test_loader, num_class = u_dset.fl_server_setting(args, connections)
     if args.model_name == 'mobilenet_v2':
         model = models.mobilenet_v2(num_classes=num_class)
@@ -80,10 +77,23 @@ def main(args: argparse.ArgumentParser):
     for connection in connections.values():
         u_sr.server(connection, b"SEND", model)
     
+    current_epoch = 0
     for round in range(args.num_rounds):
 
         # model.train()
         print("--- Round {}/{} ---".format(round+1, args.num_rounds))
+
+        for epoch in range(args.num_epochs):
+            current_epoch += 1
+            
+            if args.save_data:
+                loss_list = []
+                loss_list.append(current_epoch)
+                for client_id, connection in connections.items():
+                    loss_list.append(u_sr.server(connection, b"REQUEST"))
+                with open(loss_file_path, 'a', newline='') as f:
+                    writer = csv.writer(f)
+                    writer.writerow(loss_list)
 
         model_dict = {}
         for client_id, connection in connections.items():
