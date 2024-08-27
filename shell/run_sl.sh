@@ -22,7 +22,7 @@ weight_decay=0.0001
 temperature=0.07
 data_partitions=(0 1 4 5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
 
-fed_flag=True
+fed_flag=False
 
 proto_flag=True
 queue_size=16384
