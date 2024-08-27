@@ -98,7 +98,7 @@ def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: st
     with open(path_to_loss_file, mode='w', newline='') as file:
         writer = csv.writer(file)
         if args.proto_flag:
-            writer.writerow(['iteration', 'loss', 'proto loss', 'total loss'])
+            writer.writerow(['Epoch', 'Loss', 'Proto Loss', 'Total Loss'])
         else:
             writer.writerow(['Epoch', 'Loss'])
 
@@ -188,12 +188,12 @@ def main(args: argparse.ArgumentParser):
             
             current_epoch += 1
             loss_list = []
+            proto_loss_list = []
+            total_loss_list = []
             print("--- Epoch {}/{} ---".format(epoch+1, args.num_epochs))
 
             for i in tqdm(range(num_iterations)):
 
-                total_loss_list = []
-                proto_loss_list = []
                 for connection in connections.values():
 
                     client_data = u_sr.server(connection, b"REQUEST")
@@ -209,11 +209,12 @@ def main(args: argparse.ArgumentParser):
                     loss = criterion(output, labels)
 
                     if args.proto_flag:
-                        proto_loss = prototype.compute_prototypes(p_output, labels) # ここでプロトタイプの計算を行っている
+                        proto_loss = prototype.compute_prototypes(p_output, labels, device) # ここでプロトタイプの計算を行っている
+                        if proto_loss:
+                            proto_loss_list.append(proto_loss.item())
                         if prototype.use_proto:
                             total_loss = loss * (current_epoch / total_epoch) + proto_loss * (1 - current_epoch / total_epoch)
                             total_loss_list.append(total_loss.item())
-                            proto_loss_list.append(proto_loss.item())
                             total_loss.backward()
                         else:
                             loss.backward()
@@ -249,11 +250,21 @@ def main(args: argparse.ArgumentParser):
                 #     else:
                 #         print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
-            print('loss: ', np.mean(loss_list))
-            if args.save_data:
-                with open(loss_path, 'a', newline='') as f:
-                    writer = csv.writer(f)
-                    writer.writerow([current_epoch, np.mean(loss_list)])
+            mean_loss = np.mean(loss_list)
+            if args.proto_flag:
+                mean_proto_loss = np.mean(proto_loss_list)
+                mean_total_loss = np.mean(total_loss_list)
+                print(f'Loss: {mean_loss}, Proto Loss: {mean_proto_loss}, Total Loss: {mean_total_loss}')
+                if args.save_data:
+                    with open(loss_path, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([current_epoch, mean_loss, mean_proto_loss, mean_total_loss])
+            else:
+                print('Loss: ', mean_loss)
+                if args.save_data:
+                    with open(loss_path, 'a', newline='') as f:
+                        writer = csv.writer(f)
+                        writer.writerow([current_epoch, mean_loss])
 
         
         if args.fed_flag == True:
