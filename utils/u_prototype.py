@@ -15,8 +15,9 @@ class prototype:
         self.prototypes = torch.zeros(num_class, args.output_size)
         self.proto_pointer = torch.zeros(1, dtype=torch.long)
         self.use_proto = False
+        self.cos = torch.nn.CosineSimilarity(dim=1)
     
-    def compute_prototypes(self, output: torch.Tensor, labels: torch.Tensor):
+    def compute_prototypes(self, output: torch.Tensor, labels: torch.Tensor, device: str):
         
         with torch.no_grad():
             ptr = int(self.proto_pointer)
@@ -33,9 +34,15 @@ class prototype:
         
         if self.use_proto:
             output = torch.nn.functional.normalize(output, dim=1)
-            proto_o = torch.mm(output, self.prototypes.t().to(self.device))
-            proto_o /= self.args.temperature
-            proto_loss = self.criterion(proto_o, labels)
+
+            similarities = torch.zeros(output.size(0), self.prototypes.size(0)).to(device)
+            for i, proto in enumerate(self.prototypes.to(device)):
+                similarities[:, i] = self.cos(output, proto.unsqueeze(0).expand_as(output))
+            proto_loss = self.criterion(similarities, labels)
+
+            # proto_o = torch.mm(output, self.prototypes.t().to(self.device))
+            # proto_o /= self.args.temperature
+            # proto_loss = self.criterion(proto_o, labels)
 
             return proto_loss
         else:
