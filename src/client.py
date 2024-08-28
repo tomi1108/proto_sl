@@ -8,6 +8,7 @@ import copy
 import torch
 import torch.nn as nn
 import numpy as np
+import torch.nn.functional as F
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader, Subset
@@ -65,6 +66,10 @@ def main(args: argparse.ArgumentParser):
     # データローダの作成
     train_loader, test_loader = u_dset.client_data_setting(args, client_socket)
 
+    # クライアントモデルを受信
+    client_model, optimizer = set_model(args, client_socket)
+    client_model = client_model.to(device)
+
     # MOON用のモデルを定義
     if args.con_flag == True:
         previous_client_model = None
@@ -73,10 +78,16 @@ def main(args: argparse.ArgumentParser):
         criterion = nn.CrossEntropyLoss()
         cos = nn.CosineSimilarity(dim=-1)
 
-    # クライアントモデルを受信
-    client_model, optimizer = set_model(args, client_socket)
-    client_model = client_model.to(device)
-
+    # 双方向知識蒸留用モデルを定義
+    if args.mkd_flag:
+        global_client_model = copy.deepcopy(client_model)
+        global_optimizer = torch.optim.SGD(params=global_client_model.parameters(),
+                                           lr=args.lr,
+                                           momentum=args.momentum,
+                                           weight_decay=args.weight_decay
+                                           )
+        projection_head = u_sr.client(client_socket).to(device)
+        mkd_criterion = nn.KLDivLoss(reduction='batchmean')
 
     # 学習開始
     for round in range(args.num_rounds):
@@ -121,6 +132,25 @@ def main(args: argparse.ArgumentParser):
 
                     if i % 100 == 0:
                         print('con_loss: ', con_loss.item())
+                
+                if args.mkd_flag == True and round > 0:
+
+                    optimizer.zero_grad()
+                    global_optimizer.zero_grad()
+
+                    smashed_output = projection_head(smashed_data.to(device))
+                    global_output = projection_head(global_client_model(images))
+
+                    client_loss = mkd_criterion(F.log_softmax(smashed_output / 2.0, dim=1), 
+                                                F.softmax(global_output.detach() / 2.0, dim=1)) * (2.0 * 2.0)
+                    global_loss = mkd_criterion(F.log_softmax(global_output / 2.0, dim=1), 
+                                                F.softmax(smashed_output.detach() / 2.0, dim=1)) * (2.0 * 2.0)
+                    global_loss.backward()
+                    global_optimizer.step()
+
+                    client_loss.backward(retain_graph=True)
+                    grads1 = [param.grad.clone() for param in client_model.parameters()]
+
 
                 optimizer.zero_grad()
                 gradients = u_sr.client(client_socket).to(device)
@@ -130,6 +160,12 @@ def main(args: argparse.ArgumentParser):
                 if args.con_flag == True and round > 0:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
                     combine_grads = [5 * g1 + g2 for g1, g2 in zip(grads1, grads2)]
+                    for param, grad in zip(client_model.parameters(), combine_grads):
+                        param.grad = grad
+                
+                if args.mkd_flag == True and round > 0:
+                    grads2 = [param.grad.clone() for param in client_model.parameters()]
+                    combine_grads = [g1 + g2 for g1, g2 in zip(grads1, grads2)]
                     for param, grad in zip(client_model.parameters(), combine_grads):
                         param.grad = grad
 
@@ -145,6 +181,9 @@ def main(args: argparse.ArgumentParser):
             u_sr.client(client_socket, client_model)
             client_model.load_state_dict(u_sr.client(client_socket).state_dict())
             client_model = client_model.to(device)
+
+            if args.mkd_flag:
+                global_client_model = copy.deepcopy(client_model)
 
             if args.con_flag == True:
                 global_client_model = copy.deepcopy(client_model)

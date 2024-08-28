@@ -162,19 +162,19 @@ def main(args: argparse.ArgumentParser):
     if args.proto_flag:
         prototype = u_proto.prototype(args, num_class)
     
+    # クライアントにモデルを送信
+    for connection in connections.values():
+        u_sr.server(connection, b"SEND", client_model)
+
     # MOON用の次元削減線形層を定義と送信
-    if args.con_flag == True:
+    if args.con_flag == True or args.mkd_flag == True:
         projection_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(512, 64)
         )
         for connection in connections.values():
             u_sr.server(connection, b"SEND", projection_head)
-
-    # クライアントにモデルを送信
-    for connection in connections.values():
-        u_sr.server(connection, b"SEND", client_model)
-
+            
 
     current_epoch = 0
     total_epoch = args.num_rounds * args.num_epochs

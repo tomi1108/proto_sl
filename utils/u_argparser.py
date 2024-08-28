@@ -20,6 +20,7 @@ def arg_parser():
     parser.add_argument('--proto_flag', type=str, required=True, help="The Prototypical Contrastive Learning flag.")
     parser.add_argument('--self_kd_flag', type=str, required=True, help="The Self-Knowledge Distillation flag.")
     parser.add_argument('--con_flag', type=str, required=True, help='The Model Contrastive Learning flag')
+    parser.add_argument('--mkd_flag', type=str, required=True, help='The Mutual Knowledge Distillation')
     parser.add_argument('--model_name', type=str, required=True, help='The train model.')
     parser.add_argument('--dataset_path', type=str, required=True, help='Tha path of dataset directory')
     parser.add_argument('--dataset_type', type=str, required=True, help='Tha type of dataset')
@@ -32,6 +33,7 @@ def arg_parser():
     args.fed_flag = str_to_bool(args.fed_flag)
     args.proto_flag = str_to_bool(args.proto_flag)
     args.con_flag = str_to_bool(args.con_flag)
+    args.mkd_flag = str_to_bool(args.mkd_flag)
     args.self_kd_flag = str_to_bool(args.self_kd_flag)
     args.save_data = str_to_bool(args.save_data)
 
