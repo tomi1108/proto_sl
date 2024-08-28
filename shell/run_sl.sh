@@ -10,7 +10,7 @@ dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=1111
+port_number=2222
 seed=42
 num_clients=2
 num_rounds=50
@@ -27,9 +27,9 @@ output_size=64
 fed_flag=True # クライアントモデルに対してAggregation実行
 proto_flag=False # プロトタイプを使用
 con_flag=False # モデル対照学習を使用
-mkd_flag=False # 双方向知識蒸留を使用
-moco_flag=True # Momentum対照学習を使用
-aug_plus=True # Mocoのversion設定（Trueならv2, Falseならv1）
+mkd_flag=True # 双方向知識蒸留を使用
+moco_flag=False # Momentum対照学習を使用
+aug_plus=False # Mocoのversion設定（Trueならv2, Falseならv1）
 
 self_kd_flag=False
 
@@ -85,8 +85,7 @@ for data_partition in "${data_partitions[@]}"; do
                 sleep 5
                 source ~/anaconda3/etc/profile.d/conda.sh
                 conda activate ${anaconda_env}
-                ${client_command}
-                sleep 15" &
+                ${client_command}" &
         done
 
         # サーバを立ち上げる

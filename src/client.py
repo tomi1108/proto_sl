@@ -82,8 +82,6 @@ def main(args: argparse.ArgumentParser):
     # 双方向知識蒸留用モデルを定義
     if args.mkd_flag:
         global_client_model = copy.deepcopy(client_model)
-        for param in global_client_model.parameters():
-            param.requires_grad = False
         global_optimizer = torch.optim.SGD(params=global_client_model.parameters(),
                                            lr=args.lr,
                                            momentum=args.momentum,
@@ -94,6 +92,8 @@ def main(args: argparse.ArgumentParser):
     
     if args.moco_flag:
         global_client_model = copy.deepcopy(client_model)
+        for param in global_client_model.parameters():
+            param.requires_grad = False
         projection_head = u_sr.client(client_socket).to(device)
         Moco = u_moco.Moco(args)
         criterion = nn.CrossEntropyLoss()
@@ -123,17 +123,18 @@ def main(args: argparse.ArgumentParser):
                     labels = labels.to(device)
                     
                     smashed_data = client_model(images)
+                
                 send_data_dict['smashed_data'] = smashed_data.to('cpu')
                 send_data_dict['labels'] = labels.to('cpu')
                 u_sr.client(client_socket, send_data_dict)
 
-                # if args.moco_flag:
-                #     optimizer.zero_grad()
+                if args.moco_flag:
+                    optimizer.zero_grad()
 
-                #     moco_outs, moco_labels = Moco.compute_moco(images_q, images_k, client_model, global_client_model, projection_head)
-                #     moco_loss = criterion(moco_outs, moco_labels)
-                #     moco_loss.backward(retain_graph=True)
-                #     grads1 = [param.grad.clone() for param in client_model.parameters()]
+                    moco_outs, moco_labels = Moco.compute_moco(images_q, images_k, client_model, global_client_model, projection_head)
+                    moco_loss = criterion(moco_outs, moco_labels)
+                    moco_loss.backward(retain_graph=True)
+                    grads1 = [param.grad.clone() for param in client_model.parameters()]
 
 
                 if args.con_flag == True and round > 0:
@@ -181,7 +182,7 @@ def main(args: argparse.ArgumentParser):
                 optimizer.zero_grad()
                 gradients = u_sr.client(client_socket).to(device)
                 smashed_data.grad = gradients.clone().detach()
-                smashed_data.backward(gradient=smashed_data.grad, retain_graph=True)
+                smashed_data.backward(gradient=smashed_data.grad)
 
                 if args.con_flag == True and round > 0:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
@@ -197,17 +198,10 @@ def main(args: argparse.ArgumentParser):
 
                 if args.moco_flag:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
-
-                    optimizer.zero_grad()
-                    moco_outs, moco_labels = Moco.compute_moco(images_q, images_k, client_model, global_client_model, projection_head)
-                    moco_loss = criterion(moco_outs, moco_labels)
-                    moco_loss.backward()
-                    grads1 = [param.grad.clone() for param in client_model.parameters()]
-
                     combine_grads = [5 * g1 + g2 for g1, g2 in zip(grads1, grads2)]
                     for param, grad in zip(client_model.parameters(), combine_grads):
                         param.grad = grad
-
+                
                 optimizer.step()
         
         if args.fed_flag == True:

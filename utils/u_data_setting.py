@@ -16,6 +16,16 @@ class TwoCropsTransform:
         q = self.base_transform(x)
         k = self.base_transform(x)
         return [q, k]
+    
+# class GaussianBlur:
+
+#     def __init__(self, sigma=[0.1, 2.0]):
+#         self.sigma = sigma
+
+#     def __call__(self, x):
+#         sigma = random.uniform(self.sigma[0], self.sigma[1])
+#         return transforms.GaussianBlur(kernel_size=3, sigma=sigma)(x)
+
 
 def augmentation_setting(args: argparse.ArgumentParser):
 
@@ -31,7 +41,7 @@ def augmentation_setting(args: argparse.ArgumentParser):
                     [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
                 ),
                 transforms.RandomGrayscale(p=0.2),
-                transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=random.uniform(0.1, 2.0))], p=0.5),
+                transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.5),
                 transforms.RandomHorizontalFlip(),
                 transforms.ToTensor(),
                 normalize,
@@ -55,9 +65,10 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
         augmentation = TwoCropsTransform(transforms.Compose(augmentation_setting(args)))
     else:
         augmentation = transforms.ToTensor()
+    print(augmentation)
 
     if args.dataset_type == 'cifar10':
-        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=augmentation, download=True)
+        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
         if args.fed_flag == False:
             test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
             test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False)            
