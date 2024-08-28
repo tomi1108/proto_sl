@@ -127,13 +127,13 @@ def main(args: argparse.ArgumentParser):
                 send_data_dict['labels'] = labels.to('cpu')
                 u_sr.client(client_socket, send_data_dict)
 
-                if args.moco_flag:
-                    optimizer.zero_grad()
+                # if args.moco_flag:
+                #     optimizer.zero_grad()
 
-                    moco_outs, moco_labels = Moco.compute_moco(images_q, images_k, client_model, global_client_model, projection_head)
-                    moco_loss = criterion(moco_outs, moco_labels)
-                    moco_loss.backward(retain_graph=True)
-                    grads1 = [param.grad.clone() for param in client_model.parameters()]
+                #     moco_outs, moco_labels = Moco.compute_moco(images_q, images_k, client_model, global_client_model, projection_head)
+                #     moco_loss = criterion(moco_outs, moco_labels)
+                #     moco_loss.backward(retain_graph=True)
+                #     grads1 = [param.grad.clone() for param in client_model.parameters()]
 
 
                 if args.con_flag == True and round > 0:
@@ -181,7 +181,7 @@ def main(args: argparse.ArgumentParser):
                 optimizer.zero_grad()
                 gradients = u_sr.client(client_socket).to(device)
                 smashed_data.grad = gradients.clone().detach()
-                smashed_data.backward(gradient=smashed_data.grad)
+                smashed_data.backward(gradient=smashed_data.grad, retain_graph=True)
 
                 if args.con_flag == True and round > 0:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
@@ -197,7 +197,14 @@ def main(args: argparse.ArgumentParser):
 
                 if args.moco_flag:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
-                    combine_grads = [g1 + g2 for g1, g2 in zip(grads1, grads2)]
+
+                    optimizer.zero_grad()
+                    moco_outs, moco_labels = Moco.compute_moco(images_q, images_k, client_model, global_client_model, projection_head)
+                    moco_loss = criterion(moco_outs, moco_labels)
+                    moco_loss.backward()
+                    grads1 = [param.grad.clone() for param in client_model.parameters()]
+
+                    combine_grads = [5 * g1 + g2 for g1, g2 in zip(grads1, grads2)]
                     for param, grad in zip(client_model.parameters(), combine_grads):
                         param.grad = grad
 
