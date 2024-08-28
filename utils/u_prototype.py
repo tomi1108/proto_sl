@@ -35,14 +35,14 @@ class prototype:
         if self.use_proto:
             output = torch.nn.functional.normalize(output, dim=1)
 
-            similarities = torch.zeros(output.size(0), self.prototypes.size(0)).to(device)
-            for i, proto in enumerate(self.prototypes.to(device)):
-                similarities[:, i] = self.cos(output, proto.unsqueeze(0).expand_as(output))
-            proto_loss = self.criterion(similarities, labels)
+            # similarities = torch.zeros(output.size(0), self.prototypes.size(0)).to(device)
+            # for i, proto in enumerate(self.prototypes.to(device)):
+            #     similarities[:, i] = self.cos(output, proto.unsqueeze(0).expand_as(output))
+            # proto_loss = self.criterion(similarities, labels)
 
-            # proto_o = torch.mm(output, self.prototypes.t().to(self.device))
-            # proto_o /= self.args.temperature
-            # proto_loss = self.criterion(proto_o, labels)
+            proto_o = torch.mm(output, self.prototypes.t().to(self.device))
+            proto_o /= self.args.temperature
+            proto_loss = self.criterion(proto_o, labels)
 
             return proto_loss
         else:
