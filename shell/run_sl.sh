@@ -13,27 +13,28 @@ client_file_name=client.py
 port_number=1111
 seed=42
 num_clients=2
-num_rounds=25
-num_epochs=10
+num_rounds=50
+num_epochs=5
 batch_sizes=(128)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
 temperature=0.07
-data_partitions=(4 5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
-
-fed_flag=True
-
-proto_flag=True
+data_partitions=(4) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
 queue_size=16384
 output_size=64
 
+fed_flag=True # クライアントモデルに対してAggregation実行
+proto_flag=False # プロトタイプを使用
 con_flag=False # モデル対照学習を使用
+mkd_flag=False # 双方向知識蒸留を使用
+moco_flag=True # Momentum対照学習を使用
+aug_plus=True # Mocoのversion設定（Trueならv2, Falseならv1）
 
 self_kd_flag=False
 
 current_date=$(date +%Y-%m-%d)
-save_data=True
+save_data=False
 
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ${anaconda_env}
@@ -61,6 +62,9 @@ for data_partition in "${data_partitions[@]}"; do
             --fed_flag ${fed_flag} \
             --proto_flag ${proto_flag} \
             --con_flag ${con_flag} \
+            --moco_flag ${moco_flag} \
+            --aug_plus ${aug_plus} \
+            --mkd_flag ${mkd_flag} \
             --self_kd_flag ${self_kd_flag} \
             --model_name ${model_name} \
             --dataset_path ${dataset_path} \
@@ -81,7 +85,8 @@ for data_partition in "${data_partitions[@]}"; do
                 sleep 5
                 source ~/anaconda3/etc/profile.d/conda.sh
                 conda activate ${anaconda_env}
-                ${client_command}" &
+                ${client_command}
+                sleep 15" &
         done
 
         # サーバを立ち上げる
