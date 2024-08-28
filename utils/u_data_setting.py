@@ -7,10 +7,57 @@ import utils.u_send_receive as u_sr
 
 from torch.utils.data import DataLoader, Subset
 
-def client_data_setting(args: argparse.ArgumentParser, client_socket):
+class TwoCropsTransform:
+
+    def __init__(self, transform):
+        self.base_transform = transform
+    
+    def __call__(self, x):
+        q = self.base_transform(x)
+        k = self.base_transform(x)
+        return [q, k]
+
+def augmentation_setting(args: argparse.ArgumentParser):
 
     if args.dataset_type == 'cifar10':
-        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
+
+        normalize = transforms.Normalize(
+            mean = [0.4914, 0.4822, 0.4465], std = [0.2023, 0.1994, 0.2010]
+        )
+        if args.aug_plus:
+            augmentation = [
+                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
+                transforms.RandomApply(
+                    [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
+                ),
+                transforms.RandomGrayscale(p=0.2),
+                transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=random.uniform(0.1, 2.0))], p=0.5),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ]
+        else:
+            augmentation = [
+                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
+                transforms.RandomGrayscale(p=0.2),
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
+                transforms.RandomHorizontalFlip(),
+                transforms.ToTensor(),
+                normalize,
+            ]
+
+    return augmentation
+
+
+def client_data_setting(args: argparse.ArgumentParser, client_socket):
+
+    if args.moco_flag:
+        augmentation = TwoCropsTransform(transforms.Compose(augmentation_setting(args)))
+    else:
+        augmentation = transforms.ToTensor()
+
+    if args.dataset_type == 'cifar10':
+        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=augmentation, download=True)
         if args.fed_flag == False:
             test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
             test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False)            

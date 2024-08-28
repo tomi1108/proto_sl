@@ -20,6 +20,7 @@ from tqdm import tqdm
 import utils.u_argparser as u_parser
 import utils.u_send_receive as u_sr
 import utils.u_data_setting as u_dset
+import utils.u_momentum_contrast as u_moco
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 # device = 'cpu'
@@ -81,6 +82,8 @@ def main(args: argparse.ArgumentParser):
     # 双方向知識蒸留用モデルを定義
     if args.mkd_flag:
         global_client_model = copy.deepcopy(client_model)
+        for param in global_client_model.parameters():
+            param.requires_grad = False
         global_optimizer = torch.optim.SGD(params=global_client_model.parameters(),
                                            lr=args.lr,
                                            momentum=args.momentum,
@@ -88,6 +91,12 @@ def main(args: argparse.ArgumentParser):
                                            )
         projection_head = u_sr.client(client_socket).to(device)
         mkd_criterion = nn.KLDivLoss(reduction='batchmean')
+    
+    if args.moco_flag:
+        global_client_model = copy.deepcopy(client_model)
+        projection_head = u_sr.client(client_socket).to(device)
+        Moco = u_moco.Moco(args)
+        criterion = nn.CrossEntropyLoss()
 
     # 学習開始
     for round in range(args.num_rounds):
@@ -102,13 +111,30 @@ def main(args: argparse.ArgumentParser):
             for i, (images, labels) in enumerate(tqdm(train_loader)):
 
                 send_data_dict = {'smashed_data': None, 'labels': None}
-                images = images.to(device)
-                labels = labels.to(device)
-                
-                smashed_data = client_model(images)
+
+                if args.moco_flag:
+                    images_q = images[0].to(device)
+                    images_k = images[1].to(device)
+                    labels = labels.to(device)
+
+                    smashed_data = client_model(images_q)
+                else:
+                    images = images.to(device)
+                    labels = labels.to(device)
+                    
+                    smashed_data = client_model(images)
                 send_data_dict['smashed_data'] = smashed_data.to('cpu')
                 send_data_dict['labels'] = labels.to('cpu')
                 u_sr.client(client_socket, send_data_dict)
+
+                if args.moco_flag:
+                    optimizer.zero_grad()
+
+                    moco_outs, moco_labels = Moco.compute_moco(images_q, images_k, client_model, global_client_model, projection_head)
+                    moco_loss = criterion(moco_outs, moco_labels)
+                    moco_loss.backward(retain_graph=True)
+                    grads1 = [param.grad.clone() for param in client_model.parameters()]
+
 
                 if args.con_flag == True and round > 0:
 
@@ -169,6 +195,12 @@ def main(args: argparse.ArgumentParser):
                     for param, grad in zip(client_model.parameters(), combine_grads):
                         param.grad = grad
 
+                if args.moco_flag:
+                    grads2 = [param.grad.clone() for param in client_model.parameters()]
+                    combine_grads = [g1 + g2 for g1, g2 in zip(grads1, grads2)]
+                    for param, grad in zip(client_model.parameters(), combine_grads):
+                        param.grad = grad
+
                 optimizer.step()
         
         if args.fed_flag == True:
@@ -181,6 +213,11 @@ def main(args: argparse.ArgumentParser):
             u_sr.client(client_socket, client_model)
             client_model.load_state_dict(u_sr.client(client_socket).state_dict())
             client_model = client_model.to(device)
+
+            if args.moco_flag:
+                for param_q, param_k in zip(client_model.parameters(), global_client_model.parameters()):
+                    param_k.data.copy_(param_q.data)
+                    param_k.requires_grad = False
 
             if args.mkd_flag:
                 global_client_model = copy.deepcopy(client_model)

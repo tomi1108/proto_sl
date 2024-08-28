@@ -167,7 +167,7 @@ def main(args: argparse.ArgumentParser):
         u_sr.server(connection, b"SEND", client_model)
 
     # MOON用の次元削減線形層を定義と送信
-    if args.con_flag == True or args.mkd_flag == True:
+    if args.con_flag == True or args.mkd_flag == True or args.moco_flag == True:
         projection_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(512, 64)
