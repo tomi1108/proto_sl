@@ -68,7 +68,7 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
     print(augmentation)
 
     if args.dataset_type == 'cifar10':
-        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
+        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=augmentation, download=True)
         if args.fed_flag == False:
             test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
             test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False)            
@@ -77,10 +77,15 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
     train_dataset = Subset(train_dataset, train_dataset_idx)
 
     class_counts = [0 for _ in range(num_class)]
-    for _, target in train_dataset:
+    for idx in train_dataset.indices:
+        target = train_dataset.dataset.targets[idx]
         class_counts[target] += 1
+    # for _, target in train_dataset:
+    #     print(target)
+    #     class_counts[target] += 1
     print("data size for each class")
     print(class_counts)
+
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
     if args.fed_flag == True:

@@ -1,7 +1,9 @@
 import argparse
+import socket
 import torch
 import torch.nn as nn
 import torchvision.models as models
+import utils.u_send_receive as u_sr
 
 class Server_Model(nn.Module):
     def __init__(self, args, model):
@@ -47,3 +49,13 @@ def model_setting(args: argparse.ArgumentParser, num_class: int):
     )
     criterion = nn.CrossEntropyLoss()
     return server_model, client_model, optimizer, criterion
+
+def client_setting(args: argparse.ArgumentParser, client_socket: socket.socket, device):
+    
+    client_model = u_sr.client(client_socket).to(device)
+    optimizer = torch.optim.SGD(params=client_model.parameters(),
+                                lr=args.lr,
+                                momentum=args.momentum,
+                                weight_decay=args.weight_decay
+                                )
+    return client_model, optimizer

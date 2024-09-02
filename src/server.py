@@ -167,14 +167,13 @@ def main(args: argparse.ArgumentParser):
         u_sr.server(connection, b"SEND", client_model)
 
     # MOON用の次元削減線形層を定義と送信
-    if args.con_flag == True or args.mkd_flag == True or args.moco_flag == True:
+    if args.con_flag == True or args.mkd_flag == True or args.moco_flag == True or args.Tiny_M_flag == True:
         projection_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(512, 64)
         )
         for connection in connections.values():
             u_sr.server(connection, b"SEND", projection_head)
-            
 
     current_epoch = 0
     total_epoch = args.num_rounds * args.num_epochs
