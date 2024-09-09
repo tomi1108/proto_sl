@@ -167,7 +167,7 @@ def main(args: argparse.ArgumentParser):
         u_sr.server(connection, b"SEND", client_model)
 
     # MOON用の次元削減線形層を定義と送信
-    if args.con_flag == True or args.mkd_flag == True or args.moco_flag == True or args.Tiny_M_flag == True:
+    if args.ph_flag:
         projection_head = nn.Sequential(
             nn.Flatten(),
             nn.Linear(512, 64)
@@ -224,30 +224,7 @@ def main(args: argparse.ArgumentParser):
                     optimizer.step()
 
                     u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
-                
 
-                # if i % 100 == 0:
-                #     cur_iter = i + num_iterations * epoch + round * num_iterations * args.num_epochs
-                #     average_loss = sum(loss_list) / len(loss_list)
-                #     if args.proto_flag:
-                #         if prototype.use_proto:
-                #             average_total_loss = sum(total_loss_list) / len(total_loss_list)
-                #             average_proto_loss = sum(proto_loss_list) / len(proto_loss_list)
-                #             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f} | Proto Loss: {:.4f} | Total Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss, average_proto_loss, average_total_loss))
-
-                #             if args.save_data == True:
-                #                 with open(loss_path, 'a', newline='') as f:
-                #                     writer = csv.writer(f)
-                #                     writer.writerow([cur_iter, average_loss, average_proto_loss, average_total_loss])
-                #         else:
-                #             print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
-
-                #             if args.save_data == True:
-                #                 with open(loss_path, 'a', newline='') as f:
-                #                     writer = csv.writer(f)
-                #                     writer.writerow([cur_iter, average_loss])
-                #     else:
-                #         print("Round: {} | Epoch: {} | Iteration: {} | Loss: {:.4f}".format(round+1, epoch+1, i+1, average_loss))
 
             mean_loss = np.mean(loss_list)
             if args.proto_flag:

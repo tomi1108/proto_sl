@@ -44,7 +44,7 @@ def print_setting(args: argparse.ArgumentParser):
         train_mode = train_mode + '_Self-KD'
     if args.mkd_flag:
         train_mode = train_mode + '_MKD'
-    if args.Tiny_M_flag:
+    if args.TiM_flag:
         train_mode = train_mode + '_TiM'
     
     print(" - train mode: ", train_mode)
