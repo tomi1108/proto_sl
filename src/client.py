@@ -86,7 +86,6 @@ def main(args: argparse.ArgumentParser):
 
     # Tiny-MOONを使用
     if args.Tiny_M_flag:
-        projection_head = u_sr.client(client_socket).to(device)
         criterion = nn.CrossEntropyLoss()
         cos = nn.CosineSimilarity(dim=1)
 
