@@ -32,19 +32,21 @@ def print_setting(args: argparse.ArgumentParser):
 
     # 学習方法について
     train_mode = 'SL'
-    if args.fed_flag == True:
+    if args.fed_flag:
         train_mode = train_mode + '_SFL'
-    if args.proto_flag == True:
+    if args.proto_flag:
         train_mode = train_mode + '_Proto'
-    if args.con_flag == True:
+    if args.con_flag:
         train_mode = train_mode + '_Con'
     if args.moco_flag:
         train_mode = train_mode + '_Moco'
-    if args.self_kd_flag == True:
+    if args.self_kd_flag:
         train_mode = train_mode + '_Self-KD'
+    if args.kd_flag:
+        train_mode = train_mode + '_KD'
     if args.mkd_flag:
         train_mode = train_mode + '_MKD'
-    if args.Tiny_M_flag:
+    if args.TiM_flag:
         train_mode = train_mode + '_TiM'
     
     print(" - train mode: ", train_mode)
