@@ -138,6 +138,9 @@ def main(args: argparse.ArgumentParser):
                         param.grad = grad
                 
                 optimizer.step()
+            
+            if args.Mix_flag and round > 0:
+                mix.update_alpha()
         
         if args.fed_flag == True:
             

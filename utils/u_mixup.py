@@ -16,6 +16,8 @@ class Mixup:
         self.alpha = alpha
         self.shuffle = shuffle
         self.global_model = None
+        self.total_epochs = (args.num_rounds - 1) * args.num_epochs
+        self.current_epoch = 0
     
     def train(self,
               images: torch.Tensor,
@@ -45,3 +47,10 @@ class Mixup:
     def requires_grad_false(self):
         for param in self.global_model.parameters():
             param.requires_grad = False
+    
+
+    def update_alpha(self):
+
+        self.current_epoch += 1
+        self.alpha = max(0, self.alpha * (1 - self.current_epoch / self.total_epochs))
+        print(self.alpha)
