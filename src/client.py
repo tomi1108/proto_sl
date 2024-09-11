@@ -23,6 +23,7 @@ import utils.u_momentum_contrast as u_moco
 import utils.u_knowledge_distillation as u_kd
 import utils.u_mutual_knowledge_distillation as u_mkd
 import utils.u_tiny_moon as u_tim
+import utils.u_mixup as u_mix
 
 # 初期設定 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -80,6 +81,8 @@ def main(args: argparse.ArgumentParser):
         mkd = u_mkd.MKD(args, client_model, projection_head, device)
     if args.TiM_flag: # Tiny-MOON
         tim = u_tim.Tim(args, device, projection_head, train_loader)
+    if args.Mix_flag:
+        mix = u_mix.Mixup(args, device)
 
     # 学習開始
     for round in range(args.num_rounds):
@@ -103,6 +106,9 @@ def main(args: argparse.ArgumentParser):
                 labels = labels.to(device)
                 smashed_data = client_model(images)
                 
+                if args.Mix_flag and round > 0:
+                    smashed_data, labels = mix.train(images, labels, smashed_data)
+
                 send_data_dict['smashed_data'] = smashed_data.to('cpu')
                 send_data_dict['labels'] = labels.to('cpu')
                 u_sr.client(client_socket, send_data_dict)
@@ -161,6 +167,10 @@ def main(args: argparse.ArgumentParser):
                 mkd.global_client_model = copy.deepcopy(client_model)
             if args.TiM_flag:
                 tim.calculate_average(client_model, glob_flag=True)
+            if args.Mix_flag:
+                mix.global_model = copy.deepcopy(client_model)
+                mix.requires_grad_false()
+            
 
 
         elif args.fed_flag == False:

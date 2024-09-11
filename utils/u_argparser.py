@@ -31,7 +31,11 @@ def arg_parser():
 
     parser.add_argument('--mkd_flag', type=str, required=True, help='The Mutual Knowledge Distillation')
     parser.add_argument('--mkd_temperature', type=float, required=True, help='The temperature parameter of Mutual Knowledge Distillation')
+
     parser.add_argument('--TiM_flag', type=str, required=True, help='The Tiny-MOON flag')
+
+    parser.add_argument('--Mix_flag', type=str, required=True, help='The mixup data augmentation')
+
     parser.add_argument('--model_name', type=str, required=True, help='The train model.')
     parser.add_argument('--dataset_path', type=str, required=True, help='Tha path of dataset directory')
     parser.add_argument('--dataset_type', type=str, required=True, help='Tha type of dataset')
@@ -49,6 +53,7 @@ def arg_parser():
     args.moco_flag = str_to_bool(args.moco_flag)
     args.aug_plus = str_to_bool(args.aug_plus)
     args.TiM_flag = str_to_bool(args.TiM_flag)
+    args.Mix_flag = str_to_bool(args.Mix_flag)
     args.self_kd_flag = str_to_bool(args.self_kd_flag)
     args.save_data = str_to_bool(args.save_data)
 
@@ -61,7 +66,7 @@ def arg_parser():
     if args.con_flag or args.mkd_flag or args.moco_flag or args.TiM_flag or args.kd_flag:
         args.ph_flag = True
     else:
-        args.pf_flag = False
+        args.ph_flag = False
 
     return args
 
