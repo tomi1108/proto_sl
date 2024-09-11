@@ -48,6 +48,8 @@ def print_setting(args: argparse.ArgumentParser):
         train_mode = train_mode + '_MKD'
     if args.TiM_flag:
         train_mode = train_mode + '_TiM'
+    if args.Mix_flag:
+        train_mode = train_mode + '_Mix'
     
     print(" - train mode: ", train_mode)
 
