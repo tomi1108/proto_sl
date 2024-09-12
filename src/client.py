@@ -126,8 +126,8 @@ def main(args: argparse.ArgumentParser):
                         grads1 = mkd.train(images, smashed_data.to(device), client_model, optimizer) # 双方向知識蒸留による勾配を取得
                     if args.TiM_flag:
                         grads1 = tim.train(smashed_data.to(device), labels, client_model, optimizer)
-                    if args.Mix_flag:
-                        grads1 = mix.train(images, smashed_data.to(device), client_model, optimizer)
+                    # if args.Mix_flag:
+                    #     grads1 = mix.train(images, smashed_data.to(device), client_model, optimizer)
 
                 optimizer.zero_grad()
                 gradients = u_sr.client(client_socket).to(device)
