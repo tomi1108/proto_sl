@@ -63,7 +63,7 @@ def arg_parser():
     if args.TiM_flag == True and args.fed_flag == False:
         raise Exception('fed_flag is False')
     
-    if args.con_flag or args.mkd_flag or args.moco_flag or args.TiM_flag or args.kd_flag:
+    if args.con_flag or args.mkd_flag or args.moco_flag or args.TiM_flag or args.kd_flag or args.Mix_flag:
         args.ph_flag = True
     else:
         args.ph_flag = False

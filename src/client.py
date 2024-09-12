@@ -27,6 +27,7 @@ import utils.u_mixup as u_mix
 
 # 初期設定 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+torch.autograd.set_detect_anomaly(True)
 
 # シードを固定 
 def set_seed(seed: int):
@@ -82,7 +83,7 @@ def main(args: argparse.ArgumentParser):
     if args.TiM_flag: # Tiny-MOON
         tim = u_tim.Tim(args, device, projection_head, train_loader)
     if args.Mix_flag:
-        mix = u_mix.Mixup(args, device)
+        mix = u_mix.Mixup(args, device, projection_head)
 
     # 学習開始
     for round in range(args.num_rounds):
@@ -107,7 +108,7 @@ def main(args: argparse.ArgumentParser):
                 smashed_data = client_model(images)
                 
                 if args.Mix_flag and round > 0:
-                    smashed_data, labels = mix.train(images, labels, smashed_data)
+                    smashed_data, labels = mix.mix_smashed_data(images, labels, smashed_data)
 
                 send_data_dict['smashed_data'] = smashed_data.to('cpu')
                 send_data_dict['labels'] = labels.to('cpu')
@@ -125,6 +126,8 @@ def main(args: argparse.ArgumentParser):
                         grads1 = mkd.train(images, smashed_data.to(device), client_model, optimizer) # 双方向知識蒸留による勾配を取得
                     if args.TiM_flag:
                         grads1 = tim.train(smashed_data.to(device), labels, client_model, optimizer)
+                    if args.Mix_flag:
+                        grads1 = mix.train(images, smashed_data.to(device), client_model, optimizer)
 
                 optimizer.zero_grad()
                 gradients = u_sr.client(client_socket).to(device)
@@ -138,6 +141,9 @@ def main(args: argparse.ArgumentParser):
                         param.grad = grad
                 
                 optimizer.step()
+            
+            # if args.Mix_flag and round > 0:
+            #     mix.update_alpha()
         
         if args.fed_flag == True:
             
@@ -145,8 +151,9 @@ def main(args: argparse.ArgumentParser):
                 tim.calculate_average(client_model, prev_flag=True)
             if args.con_flag:
                 moon.previous_client_model = copy.deepcopy(client_model)
+            if args.Mix_flag:
+                mix.previous_model = copy.deepcopy(client_model)
             
-
             # Aggregation
             client_model = client_model.to('cpu')
             client_model.eval()
