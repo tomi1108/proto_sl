@@ -1,7 +1,6 @@
 #!/bin/bash
 
-anaconda_env=openpcdet
-# anaconda_env=faiss
+anaconda_env=SL
 src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
@@ -10,7 +9,7 @@ dataset_type=cifar10
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=2222
+port_number=1111
 seed=42
 num_clients=2
 num_rounds=50
@@ -23,7 +22,7 @@ temperature=0.07
 moon_temperature=0.5
 kd_temperature=2.0
 mkd_temperature=2.0
-data_partitions=(0 4) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
+data_partitions=(0) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
 queue_size=16384
 output_size=64
 
@@ -40,7 +39,7 @@ Mix_flag=True
 self_kd_flag=False
 
 current_date=$(date +%Y-%m-%d)
-save_data=True
+save_data=False
 
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ${anaconda_env}

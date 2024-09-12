@@ -149,6 +149,7 @@ def main(args: argparse.ArgumentParser):
 
             # Aggregation
             client_model = client_model.to('cpu')
+            client_model.eval()
             u_sr.client(client_socket, client_model.to('cpu'))
             client_model.load_state_dict(u_sr.client(client_socket).state_dict())
             client_model = client_model.to(device)
