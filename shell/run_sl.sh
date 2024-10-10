@@ -22,24 +22,26 @@ temperature=0.07
 moon_temperature=0.5
 kd_temperature=2.0
 mkd_temperature=2.0
-data_partitions=(0) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
-queue_size=16384
+data_partitions=(5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
+queue_size=32768
+# queue_size=10240
 output_size=64
 
 fed_flag=True # クライアントモデルに対してAggregation実行
 proto_flag=False # Prototypical Contrastive Learning
 moco_flag=False # Momentum Contrastive Learning
-con_flag=False # Model Contrastive Learning
+con_flag=True # Model Contrastive Learning
 kd_flag=False # Knowledge Distillation
 mkd_flag=False # Mutual Knowledge Distillation
 TiM_flag=False # Tiny-Model Contrastive Learning
 aug_plus=False # Mocoのversion設定（Trueならv2, Falseならv1）
-Mix_flag=True
+Mix_flag=False
+Mix_s_flag=False
 
 self_kd_flag=False
 
 current_date=$(date +%Y-%m-%d)
-save_data=False
+save_data=True
 
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ${anaconda_env}
@@ -76,6 +78,7 @@ for data_partition in "${data_partitions[@]}"; do
             --mkd_temperature ${mkd_temperature} \
             --TiM_flag ${TiM_flag} \
             --Mix_flag ${Mix_flag} \
+            --Mix_s_flag ${Mix_s_flag} \
             --self_kd_flag ${self_kd_flag} \
             --model_name ${model_name} \
             --dataset_path ${dataset_path} \

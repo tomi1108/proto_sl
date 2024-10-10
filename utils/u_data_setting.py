@@ -4,74 +4,34 @@ import numpy as np
 import torchvision.datasets as dsets
 import torchvision.transforms as transforms
 import utils.u_send_receive as u_sr
-
 from torch.utils.data import DataLoader, Subset
 
-class TwoCropsTransform:
+def create_dataset(args: argparse.ArgumentParser):
 
-    def __init__(self, transform):
-        self.base_transform = transform
-    
-    def __call__(self, x):
-        q = self.base_transform(x)
-        k = self.base_transform(x)
-        return [q, k]
-    
-# class GaussianBlur:
-
-#     def __init__(self, sigma=[0.1, 2.0]):
-#         self.sigma = sigma
-
-#     def __call__(self, x):
-#         sigma = random.uniform(self.sigma[0], self.sigma[1])
-#         return transforms.GaussianBlur(kernel_size=3, sigma=sigma)(x)
-
-
-def augmentation_setting(args: argparse.ArgumentParser):
+    test_loader = None # args.fed_flagがTrueならNoneのまま返す
 
     if args.dataset_type == 'cifar10':
+        
+        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
+        if args.fed_flag == False:
+            test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
+    
+    elif args.dataset_type == 'mnist':
 
-        normalize = transforms.Normalize(
-            mean = [0.4914, 0.4822, 0.4465], std = [0.2023, 0.1994, 0.2010]
-        )
-        if args.aug_plus:
-            augmentation = [
-                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
-                transforms.RandomApply(
-                    [transforms.ColorJitter(0.4, 0.4, 0.4, 0.1)], p=0.8
-                ),
-                transforms.RandomGrayscale(p=0.2),
-                transforms.RandomApply([transforms.GaussianBlur(kernel_size=3, sigma=(0.1, 2.0))], p=0.5),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                normalize,
-            ]
-        else:
-            augmentation = [
-                transforms.RandomResizedCrop(32, scale=(0.2, 1.0)),
-                transforms.RandomGrayscale(p=0.2),
-                transforms.ColorJitter(0.4, 0.4, 0.4, 0.4),
-                transforms.RandomHorizontalFlip(),
-                transforms.ToTensor(),
-                normalize,
-            ]
-
-    return augmentation
+        train_dataset = dsets.MNIST(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
+        if args.fed_flag == False:
+            test_dataset = dsets.MNIST(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
+    
+    if args.fed_flag == False:
+        test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False) 
+    
+    return train_dataset, test_loader
 
 
 def client_data_setting(args: argparse.ArgumentParser, client_socket):
 
-    if args.moco_flag:
-        augmentation = TwoCropsTransform(transforms.Compose(augmentation_setting(args)))
-    else:
-        augmentation = transforms.ToTensor()
-    print(augmentation)
-
-    if args.dataset_type == 'cifar10':
-        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=augmentation, download=True)
-        if args.fed_flag == False:
-            test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
-            test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False)            
+    train_dataset, test_loader = create_dataset(args)
+    
     num_class = len(train_dataset.classes)
     train_dataset_idx = u_sr.client(client_socket)
     train_dataset = Subset(train_dataset, train_dataset_idx)
@@ -80,22 +40,18 @@ def client_data_setting(args: argparse.ArgumentParser, client_socket):
     for idx in train_dataset.indices:
         target = train_dataset.dataset.targets[idx]
         class_counts[target] += 1
-    # for _, target in train_dataset:
-    #     print(target)
-    #     class_counts[target] += 1
     print("data size for each class")
     print(class_counts)
 
     train_loader = DataLoader(dataset=train_dataset, batch_size=args.batch_size, shuffle=True, drop_last=True)
 
-    if args.fed_flag == True:
+    if args.fed_flag:
         iteration_info = {'num_iterations': len(train_loader)}
-        u_sr.client(client_socket, iteration_info)
-        return train_loader, None
     else:
         iteration_info = {'num_iterations': len(train_loader), 'num_test_iterations': len(test_loader)}
-        u_sr.client(client_socket, iteration_info)
-        return train_loader, test_loader
+
+    u_sr.client(client_socket, iteration_info)
+    return train_loader, test_loader
 
 
     # # CIFAR10で学習

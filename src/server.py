@@ -21,6 +21,7 @@ import utils.u_data_setting as u_dset
 import utils.u_print_setting as u_print
 import utils.u_model_setting as u_mset
 import utils.u_prototype as u_proto
+import utils.u_mixup as u_mix
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -161,6 +162,8 @@ def main(args: argparse.ArgumentParser):
     # プロトタイプを定義
     if args.proto_flag:
         prototype = u_proto.prototype(args, num_class)
+    if args.Mix_s_flag:
+        mix = u_mix.Mixup_server(args, device)
     
     # クライアントにモデルを送信
     for connection in connections.values():
@@ -169,8 +172,9 @@ def main(args: argparse.ArgumentParser):
     # MOON用の次元削減線形層を定義と送信
     if args.ph_flag:
         projection_head = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(512, 64)
+            nn.AdaptiveAvgPool2d(1)
+            # nn.Flatten(),
+            # nn.Linear(512, 64)
         )
         for connection in connections.values():
             u_sr.server(connection, b"SEND", projection_head)
@@ -193,6 +197,55 @@ def main(args: argparse.ArgumentParser):
 
             for i in tqdm(range(num_iterations)):
 
+                # if args.Mix_s_flag and round > 0:
+                #     client_data_dict = mix.mix_smashed_data(connections)
+                #     for client_id, connection in connections.items():
+                #         smashed_data = client_data_dict[client_id]['smashed_data'].to(device)
+                #         smashed_data.retain_grad()
+                #         labels = client_data_dict[client_id]['labels'].to(device)
+
+                #         optimizer.zero_grad()
+                #         _, output = server_model(smashed_data)
+                #         loss = criterion(output, labels)
+                #         loss.backward(retain_graph=True)
+                #         loss_list.append(loss.item())
+                #         optimizer.step()
+
+                #         u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
+
+                # else:
+                #     for connection in connections.values():
+
+                #         client_data = u_sr.server(connection, b"REQUEST")
+                #         smashed_data = client_data['smashed_data'].to(device)
+                #         smashed_data.retain_grad()
+                #         labels = client_data['labels'].to(device)
+
+                #         if smashed_data == None or labels == None:
+                #             raise Exception("client_data has None object: {}".format(client_data))
+
+                #         optimizer.zero_grad()
+                #         p_output, output = server_model(smashed_data)
+                #         loss = criterion(output, labels)
+
+                #         if args.proto_flag:
+                #             proto_loss = prototype.compute_prototypes(p_output, labels, device) # ここでプロトタイプの計算を行っている
+                #             if proto_loss:
+                #                 proto_loss_list.append(proto_loss.item())
+                #             if prototype.use_proto:
+                #                 total_loss = loss * (current_epoch / total_epoch) + proto_loss * (1 - current_epoch / total_epoch)
+                #                 total_loss_list.append(total_loss.item())
+                #                 total_loss.backward()
+                #             else:
+                #                 loss.backward()
+                #         else:
+                #             loss.backward()
+
+                #         loss_list.append(loss.item())
+                #         optimizer.step()
+
+                #         u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
+
                 for connection in connections.values():
 
                     client_data = u_sr.server(connection, b"REQUEST")
@@ -207,24 +260,26 @@ def main(args: argparse.ArgumentParser):
                     p_output, output = server_model(smashed_data)
                     loss = criterion(output, labels)
 
+                    loss.backward(retain_graph=True)
+                    smashed_data_grad = smashed_data.grad.clone().detach()
+                    
+                    grads1 = [ param.grad.clone() for param in server_model.parameters() ]
+
                     if args.proto_flag:
-                        proto_loss = prototype.compute_prototypes(p_output, labels, device) # ここでプロトタイプの計算を行っている
-                        if proto_loss:
-                            proto_loss_list.append(proto_loss.item())
+                        proto_loss, grads2 = prototype.compute_prototypes(p_output, labels, server_model) # ここでプロトタイプの計算を行っている
                         if prototype.use_proto:
-                            total_loss = loss * (current_epoch / total_epoch) + proto_loss * (1 - current_epoch / total_epoch)
-                            total_loss_list.append(total_loss.item())
-                            total_loss.backward()
-                        else:
-                            loss.backward()
-                    else:
-                        loss.backward()
+                            optimizer.zero_grad()
+                            proto_loss_list.append(proto_loss.item())
+                            # proto_loss.backward(retain_graph=True)
+                            # grads2 = [ param.grad.clone() for param in server_model.parameters() ]
+                            combine_grad = [ (current_epoch / total_epoch) * g1 + (1 - current_epoch / total_epoch) * g2 for g1, g2 in zip(grads1, grads2)]
+                            for param, grad in zip(server_model.parameters(), combine_grad):
+                                param.grad = grad
 
-                    loss_list.append(loss.item())
                     optimizer.step()
+                    loss_list.append(loss.item())
 
-                    u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
-
+                    u_sr.server(connection, b"SEND", smashed_data_grad.to('cpu'))
 
             mean_loss = np.mean(loss_list)
             if args.proto_flag:
