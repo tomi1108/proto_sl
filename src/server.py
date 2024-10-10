@@ -169,8 +169,8 @@ def main(args: argparse.ArgumentParser):
     # MOON用の次元削減線形層を定義と送信
     if args.ph_flag:
         projection_head = nn.Sequential(
-            nn.Flatten(),
-            nn.Linear(512, 64)
+            nn.Flatten()
+            # nn.Linear(512, 64)
         )
         for connection in connections.values():
             u_sr.server(connection, b"SEND", projection_head)
