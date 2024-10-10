@@ -83,7 +83,7 @@ def main(args: argparse.ArgumentParser):
     if args.TiM_flag: # Tiny-MOON
         tim = u_tim.Tim(args, device, projection_head, train_loader)
     if args.Mix_flag:
-        mix = u_mix.Mixup(args, device, projection_head)
+        mix = u_mix.Mixup_client(args, device)
 
     # 学習開始
     for round in range(args.num_rounds):
@@ -107,6 +107,8 @@ def main(args: argparse.ArgumentParser):
                 labels = labels.to(device)
                 smashed_data = client_model(images)
                 
+                optimizer.zero_grad()
+
                 if args.Mix_flag and round > 0:
                     smashed_data, labels = mix.mix_smashed_data(images, labels, smashed_data)
 
@@ -126,24 +128,18 @@ def main(args: argparse.ArgumentParser):
                         grads1 = mkd.train(images, smashed_data.to(device), client_model, optimizer) # 双方向知識蒸留による勾配を取得
                     if args.TiM_flag:
                         grads1 = tim.train(smashed_data.to(device), labels, client_model, optimizer)
-                    # if args.Mix_flag:
-                    #     grads1 = mix.train(images, smashed_data.to(device), client_model, optimizer)
 
-                optimizer.zero_grad()
                 gradients = u_sr.client(client_socket).to(device)
                 smashed_data.grad = gradients.clone().detach()
                 smashed_data.backward(gradient=smashed_data.grad)
 
                 if grads1 is not None:
                     grads2 = [param.grad.clone() for param in client_model.parameters()]
-                    combine_grads = [g1 + g2 for g1, g2 in zip(grads1, grads2)] # MOON：5, MKD：1, Moco：5, Tim：1
+                    combine_grads = [5 * g1 + g2 for g1, g2 in zip(grads1, grads2)] # MOON：5, MKD：1, Moco：5, Tim：1
                     for param, grad in zip(client_model.parameters(), combine_grads):
                         param.grad = grad
                 
                 optimizer.step()
-            
-            # if args.Mix_flag and round > 0:
-            #     mix.update_alpha()
         
         if args.fed_flag == True:
             
@@ -151,8 +147,6 @@ def main(args: argparse.ArgumentParser):
                 tim.calculate_average(client_model, prev_flag=True)
             if args.con_flag:
                 moon.previous_client_model = copy.deepcopy(client_model)
-            if args.Mix_flag:
-                mix.previous_model = copy.deepcopy(client_model)
             
             # Aggregation
             client_model = client_model.to('cpu')

@@ -17,7 +17,11 @@ class prototype:
         self.use_proto = False
         self.cos = torch.nn.CosineSimilarity(dim=1)
     
-    def compute_prototypes(self, output: torch.Tensor, labels: torch.Tensor, device: str):
+    def compute_prototypes(self,
+                           output: torch.Tensor,
+                           labels: torch.Tensor,
+                           server_model: torch.nn.Module
+                           ):
         
         with torch.no_grad():
             ptr = int(self.proto_pointer)
@@ -38,6 +42,9 @@ class prototype:
             proto_o /= self.args.temperature
             proto_loss = self.criterion(proto_o, labels)
 
-            return proto_loss
+            proto_loss.backward()
+            grads = [ param.grad.clone() for param in server_model.parameters() ]
+
+            return proto_loss, grads
         else:
-            return None
+            return None, None
