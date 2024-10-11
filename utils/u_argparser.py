@@ -14,6 +14,7 @@ def arg_parser():
     parser.add_argument('--momentum', type=float, required=True, help="The momentum.")
     parser.add_argument('--weight_decay', type=float, required=True, help="The weight decay.")
     parser.add_argument('--temperature', type=float, required=True, help="The temperature.")
+    parser.add_argument('--alpha', type=float, required=True, help="hyperparameter of dirichlet distribution")
     parser.add_argument('--output_size', type=int, required=True, help="The output size.")
     parser.add_argument('--data_partition', type=int, required=True, help="The data partition.(IID, Non-IID, Dirichlet)")
     parser.add_argument('--fed_flag', type=str, required=True, help="The SplitFed Learning flag.")

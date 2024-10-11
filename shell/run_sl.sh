@@ -4,8 +4,8 @@ anaconda_env=SL
 src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
-model_name=mobilenet_v2
-dataset_type=cifar10
+model_name=mobilenet_v2 # [mobilenet_v2, ]
+dataset_type=cifar10 # [cifar10, ]
 server_file_name=server.py
 client_file_name=client.py
 
@@ -14,11 +14,12 @@ seed=42
 num_clients=2
 num_rounds=50
 num_epochs=5
-batch_sizes=(128)
+batch_sizes=(4)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
 temperature=0.07
+alpha=0.6
 moon_temperature=0.5
 kd_temperature=2.0
 mkd_temperature=2.0
@@ -30,7 +31,7 @@ output_size=64
 fed_flag=True # クライアントモデルに対してAggregation実行
 proto_flag=False # Prototypical Contrastive Learning
 moco_flag=False # Momentum Contrastive Learning
-con_flag=True # Model Contrastive Learning
+con_flag=False # Model Contrastive Learning
 kd_flag=False # Knowledge Distillation
 mkd_flag=False # Mutual Knowledge Distillation
 TiM_flag=False # Tiny-Model Contrastive Learning
@@ -41,7 +42,7 @@ Mix_s_flag=False
 self_kd_flag=False
 
 current_date=$(date +%Y-%m-%d)
-save_data=True
+save_data=False
 
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ${anaconda_env}
@@ -64,6 +65,7 @@ for data_partition in "${data_partitions[@]}"; do
             --momentum ${momentum} \
             --weight_decay ${weight_decay} \
             --temperature ${temperature} \
+            --alpha ${alpha} \
             --output_size ${output_size} \
             --data_partition ${data_partition} \
             --fed_flag ${fed_flag} \
