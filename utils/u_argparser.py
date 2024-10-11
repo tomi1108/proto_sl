@@ -14,6 +14,7 @@ def arg_parser():
     parser.add_argument('--momentum', type=float, required=True, help="The momentum.")
     parser.add_argument('--weight_decay', type=float, required=True, help="The weight decay.")
     parser.add_argument('--temperature', type=float, required=True, help="The temperature.")
+    parser.add_argument('--alpha', type=float, required=True, help="hyperparameter of dirichlet distribution")
     parser.add_argument('--output_size', type=int, required=True, help="The output size.")
     parser.add_argument('--data_partition', type=int, required=True, help="The data partition.(IID, Non-IID, Dirichlet)")
     parser.add_argument('--fed_flag', type=str, required=True, help="The SplitFed Learning flag.")
@@ -35,6 +36,7 @@ def arg_parser():
     parser.add_argument('--TiM_flag', type=str, required=True, help='The Tiny-MOON flag')
 
     parser.add_argument('--Mix_flag', type=str, required=True, help='The mixup data augmentation')
+    parser.add_argument('--Mix_s_flag', type=str, required=True, help='The mixup data augmentation on server side')
 
     parser.add_argument('--model_name', type=str, required=True, help='The train model.')
     parser.add_argument('--dataset_path', type=str, required=True, help='Tha path of dataset directory')
@@ -54,6 +56,7 @@ def arg_parser():
     args.aug_plus = str_to_bool(args.aug_plus)
     args.TiM_flag = str_to_bool(args.TiM_flag)
     args.Mix_flag = str_to_bool(args.Mix_flag)
+    args.Mix_s_flag = str_to_bool(args.Mix_s_flag)
     args.self_kd_flag = str_to_bool(args.self_kd_flag)
     args.save_data = str_to_bool(args.save_data)
 
@@ -63,7 +66,7 @@ def arg_parser():
     if args.TiM_flag == True and args.fed_flag == False:
         raise Exception('fed_flag is False')
     
-    if args.con_flag or args.mkd_flag or args.moco_flag or args.TiM_flag or args.kd_flag or args.Mix_flag:
+    if args.con_flag or args.mkd_flag or args.moco_flag or args.TiM_flag or args.kd_flag:
         args.ph_flag = True
     else:
         args.ph_flag = False

@@ -4,26 +4,28 @@ anaconda_env=SL
 src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
-model_name=mobilenet_v2
-dataset_type=cifar10
+model_name=mobilenet_v2 # [mobilenet_v2, ]
+dataset_type=cifar10 # [cifar10, ]
 server_file_name=server.py
 client_file_name=client.py
 
-port_number=1111
+port_number=5555
 seed=42
 num_clients=2
 num_rounds=50
 num_epochs=5
-batch_sizes=(128)
+batch_sizes=(4)
 learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
 temperature=0.07
+alpha=0.6
 moon_temperature=0.5
 kd_temperature=2.0
 mkd_temperature=2.0
-data_partitions=(0) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
-queue_size=16384
+data_partitions=(5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
+queue_size=32768
+# queue_size=10240
 output_size=64
 
 fed_flag=True # クライアントモデルに対してAggregation実行
@@ -34,7 +36,8 @@ kd_flag=False # Knowledge Distillation
 mkd_flag=False # Mutual Knowledge Distillation
 TiM_flag=False # Tiny-Model Contrastive Learning
 aug_plus=False # Mocoのversion設定（Trueならv2, Falseならv1）
-Mix_flag=True
+Mix_flag=False
+Mix_s_flag=False
 
 self_kd_flag=False
 
@@ -62,6 +65,7 @@ for data_partition in "${data_partitions[@]}"; do
             --momentum ${momentum} \
             --weight_decay ${weight_decay} \
             --temperature ${temperature} \
+            --alpha ${alpha} \
             --output_size ${output_size} \
             --data_partition ${data_partition} \
             --fed_flag ${fed_flag} \
@@ -76,6 +80,7 @@ for data_partition in "${data_partitions[@]}"; do
             --mkd_temperature ${mkd_temperature} \
             --TiM_flag ${TiM_flag} \
             --Mix_flag ${Mix_flag} \
+            --Mix_s_flag ${Mix_s_flag} \
             --self_kd_flag ${self_kd_flag} \
             --model_name ${model_name} \
             --dataset_path ${dataset_path} \
