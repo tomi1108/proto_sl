@@ -14,25 +14,25 @@ def create_directory(
     '''
     
     result_path = args.results_path + dir_path
-    accuracy_path = result_path + 'accuracy/'
-    loss_path = result_path + 'loss/'
+    accuracy_dir_path = result_path + 'accuracy/'
+    loss_dir_path = result_path + 'loss/'
 
     if not os.path.exists(result_path):
 
         os.makedirs(result_path)
         print(f'Directory {result_path} created.')
 
-    if not os.path.exists(accuracy_path):
+    if not os.path.exists(accuracy_dir_path):
 
-        os.makedirs(accuracy_path)
-        print(f'Directory {accuracy_path} created.')
+        os.makedirs(accuracy_dir_path)
+        print(f'Directory {accuracy_dir_path} created.')
 
-    if not os.path.exists(loss_path):
+    if not os.path.exists(loss_dir_path):
 
-        os.makedirs(loss_path)
-        print(f'Directory {loss_path} created.')
+        os.makedirs(loss_dir_path)
+        print(f'Directory {loss_dir_path} created.')
 
-    return accuracy_path, loss_path
+    return accuracy_dir_path, loss_dir_path
     
 
 def set_output_file(

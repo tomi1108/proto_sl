@@ -21,6 +21,7 @@ import utils.u_mixup as u_mix
 
 import utils.server.us_print_setting as us_print
 import utils.server.us_result_output as us_result
+import utils.server.us_data_setting as us_dset
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -33,48 +34,6 @@ def set_seed(seed: int):
         torch.cuda.manual_seed(seed)
         torch.backends.cudnn.deterministic = True
         torch.backends.cudnn.benchmark = False
-
-def create_directory(path: str):
-    loss = '/loss/'
-    accuracy = '/accuracy/'
-    images = '/images/'
-    if not os.path.exists(path):
-        os.makedirs(path)
-        print(f"Directory {path} created.")
-    if not os.path.exists(path+loss):
-        os.makedirs(path+loss)
-        print(f'Directory {path+loss} created')
-    if not os.path.exists(path+accuracy):
-        os.makedirs(path+accuracy)
-        print(f'Directory {path+accuracy} created')
-    if not os.path.exists(path+images):
-        os.makedirs(path+images)
-        print(f'Directory {path+images} created')
-
-def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: str, accuracy_file: str):
-
-    path_to_loss_file = args.results_path + dict_path + '/loss/' + loss_file
-    path_to_accuracy_file = args.results_path + dict_path + '/accuracy/' + accuracy_file
-
-    header = ['Round']
-    if args.fed_flag == True: # 平均化したモデルでAccuracyを測定する場合
-        header += ['Accuracy']
-    elif args.fed_flag == False: # 各クライアントモデルでAccuracyを測定する場合
-        header += ['Average_Accuracy']
-        header += [f'Client{i+1}' for i in range(args.num_clients)]
-
-    with open(path_to_loss_file, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        if args.proto_flag:
-            writer.writerow(['Epoch', 'Loss', 'Proto Loss', 'Total Loss'])
-        else:
-            writer.writerow(['Epoch', 'Loss'])
-
-    with open(path_to_accuracy_file, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(header)
-
-    return path_to_loss_file, path_to_accuracy_file
 
 def set_connection(args: argparse.ArgumentParser):
     connection_list = []
@@ -118,7 +77,8 @@ def main(args: argparse.ArgumentParser):
     server_socket, connections = set_connection(args)
     
     # データセットを用意（SFLの場合のみ）
-    test_loader, num_class, num_iterations, num_test_iterations = u_dset.server_data_setting(args, connections) # fed_flag==FalseならNone
+    # test_loader, num_class, num_iterations, num_test_iterations = u_dset.server_data_setting(args, connections) # fed_flag==FalseならNone
+    test_loader, num_class, num_iterations, num_test_iterations = us_dset.data_setting(args, connections)
 
     # モデルを定義
     server_model, client_model, optimizer, criterion = u_mset.model_setting(args, num_class)

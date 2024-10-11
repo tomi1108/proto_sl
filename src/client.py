@@ -25,6 +25,8 @@ import utils.u_mutual_knowledge_distillation as u_mkd
 import utils.u_tiny_moon as u_tim
 import utils.u_mixup as u_mix
 
+import utils.client.uc_data_setting as uc_dset
+
 # 初期設定 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 torch.autograd.set_detect_anomaly(True)
@@ -60,7 +62,7 @@ def main(args: argparse.ArgumentParser):
     client_socket = set_connection(args)
 
     # データローダの作成
-    train_loader, test_loader = u_dset.client_data_setting(args, client_socket)
+    train_loader, test_loader = uc_dset.data_setting(args, client_socket)
 
     # クライアントモデルを受信
     client_model, optimizer = u_mset.client_setting(args, client_socket, device)
