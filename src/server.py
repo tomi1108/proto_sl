@@ -5,11 +5,7 @@ import random
 import csv
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
-import torchvision.models as models
-import torchvision.datasets as dsets
-import torchvision.transforms as transforms
 import socket
 import argparse
 import os
@@ -23,39 +19,10 @@ import utils.u_model_setting as u_mset
 import utils.u_prototype as u_proto
 import utils.u_mixup as u_mix
 
+import utils.server.us_print_setting as us_print
+import utils.server.us_result_output as us_result
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-def set_model(cfg, num_classes):
-    model = models.mobilenet_v2(num_classes=num_classes)
-    model.classifier[1] = nn.Linear(1280, cfg['output_size'])
-    model.classifier.append(nn.ReLU6(inplace=True))
-    model.classifier.append(nn.Linear(cfg['output_size'], num_classes))
-    client_model = model.features[:6]
-    return model, client_model.to(device)
-
-class Server_Model(nn.Module):
-    def __init__(self, model):
-        super(Server_Model, self).__init__()
-
-        self.model = nn.Sequential(
-            model.features[6:],
-            nn.Flatten(),
-            model.classifier
-        )
-    
-    def forward(self, x):
-        output = self.model(x)
-        return output
-
-def set_server_model(model, cfg):
-    top_model = Server_Model(model=model)
-    optimizer = torch.optim.SGD(params = top_model.parameters(),
-                                lr = cfg['lr'],
-                                momentum = cfg['momentum'],
-                                weight_decay = cfg['weight_decay']
-                                )
-    criterion = nn.CrossEntropyLoss()
-    return top_model, optimizer, criterion
 
 def set_seed(seed: int):
     random.seed(seed)
@@ -137,16 +104,15 @@ def main(args: argparse.ArgumentParser):
     # シードを設定して再現性を持たせる
     set_seed(args.seed)
 
-    if args.save_data == True:
+    if args.save_data:
+
         # 初期設定を出力
-        dict_path, loss_file_name, accuracy_file_name = u_print.print_setting(args)
+        result_dir_path, file_name = us_print.print_setting(args)
+        # 結果を格納するディレクトリ作成
+        acc_dir_path, loss_dir_path = us_result.create_directory(args, result_dir_path)
+        # 結果を出力するファイル作成
+        accuracy_path, loss_path = us_result.set_output_file(args, acc_dir_path, loss_dir_path, file_name)
         
-        # 結果を格納するディレクトリを作成
-        create_directory(args.results_path + dict_path)
-
-        # 結果を出力くするファイルを初期化
-        loss_path, accuracy_path = set_output_file(args, dict_path, loss_file_name, accuracy_file_name)
-
     # クライアントと通信開始
     print("========== Server ==========\n")
     server_socket, connections = set_connection(args)
