@@ -15,9 +15,6 @@ import argparse
 from tqdm import tqdm
 
 import utils.u_argparser as u_parser
-import utils.u_send_receive as u_sr
-import utils.u_data_setting as u_dset
-import utils.u_model_setting as u_mset
 import utils.u_model_contrast as u_moon
 import utils.u_momentum_contrast as u_moco
 import utils.u_knowledge_distillation as u_kd
@@ -25,29 +22,19 @@ import utils.u_mutual_knowledge_distillation as u_mkd
 import utils.u_tiny_moon as u_tim
 import utils.u_mixup as u_mix
 
+import utils.common.u_set_seed as u_seed
+
 import utils.client.uc_data_setting as uc_dset
+import utils.client.uc_model_setting as uc_mset
+import utils.client.uc_send_receive as uc_sr
 
-# 初期設定 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-torch.autograd.set_detect_anomaly(True)
-
-# シードを固定 
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if device == torch.device('cuda'):
-        torch.cuda.manual_seed_all(seed)
-        torch.cuda.manual_seed(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
 
 # クライアントと通信 
 def set_connection(args: argparse.ArgumentParser):
     client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_address = ('localhost', args.port_number)
     client_socket.connect(server_address)
-    client_id = u_sr.client(client_socket)
+    client_id = uc_sr.receive(client_socket)
     print("\n========== Client {} ==========\n".format(client_id))
 
     return client_socket
@@ -56,20 +43,21 @@ def set_connection(args: argparse.ArgumentParser):
 def main(args: argparse.ArgumentParser):
 
     # シードを設定
-    set_seed(args.seed)
+    # set_seed(args.seed)
+    u_seed.set_seed(args.seed, device)
     
     # 通信開始
     client_socket = set_connection(args)
 
-    # データローダの作成
+    # データローダの作成（通信あり）
     train_loader, test_loader = uc_dset.data_setting(args, client_socket)
 
     # クライアントモデルを受信
-    client_model, optimizer = u_mset.client_setting(args, client_socket, device)
+    client_model, optimizer = uc_mset.client_setting(args, client_socket, device)
 
     # プロジェクションヘッドの受信
     if args.ph_flag:
-        projection_head = u_sr.client(client_socket).to(device)
+        projection_head = uc_sr.receive(client_socket).to(device)
 
     grads1 = None
 
@@ -116,7 +104,8 @@ def main(args: argparse.ArgumentParser):
 
                 send_data_dict['smashed_data'] = smashed_data.to('cpu')
                 send_data_dict['labels'] = labels.to('cpu')
-                u_sr.client(client_socket, send_data_dict)
+                # u_sr.client(client_socket, send_data_dict)
+                uc_sr.send(client_socket, send_data_dict)
 
                 if args.moco_flag:
                     grads1 = moco.train(images, images_k, client_model, optimizer) # モメンタムエンコーダによる勾配を取得
@@ -131,7 +120,8 @@ def main(args: argparse.ArgumentParser):
                     if args.TiM_flag:
                         grads1 = tim.train(smashed_data.to(device), labels, client_model, optimizer)
 
-                gradients = u_sr.client(client_socket).to(device)
+                # gradients = u_sr.client(client_socket).to(device)
+                gradients = uc_sr.receive(client_socket).to(device)
                 smashed_data.grad = gradients.clone().detach()
                 smashed_data.backward(gradient=smashed_data.grad)
 
@@ -153,8 +143,10 @@ def main(args: argparse.ArgumentParser):
             # Aggregation
             client_model = client_model.to('cpu')
             client_model.eval()
-            u_sr.client(client_socket, client_model.to('cpu'))
-            client_model.load_state_dict(u_sr.client(client_socket).state_dict())
+            # u_sr.client(client_socket, client_model.to('cpu'))
+            uc_sr.send(client_socket, client_model.to('cpu'))
+            # client_model.load_state_dict(u_sr.client(client_socket).state_dict())
+            client_model.load_state_dict(uc_sr.receive(client_socket).state_dict())
             client_model = client_model.to(device)
 
 
@@ -190,9 +182,11 @@ def main(args: argparse.ArgumentParser):
                     send_data_dict['smashed_data'] = smashed_data
                     send_data_dict['labels'] = labels
 
-                    u_sr.client(client_socket, send_data_dict)
+                    # u_sr.client(client_socket, send_data_dict)
+                    uc_sr.send(client_socket, send_data_dict)
                 
-                accuracy = u_sr.client(client_socket)
+                # accuracy = u_sr.client(client_socket)
+                accuracy = uc_sr.receive(client_socket)
                 print('Round: {}, Accuracy: {:.4f}'.format(round+1, accuracy))
 
 
@@ -200,6 +194,8 @@ def main(args: argparse.ArgumentParser):
     client_socket.close()
 
 if __name__ == '__main__':
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     args = u_parser.arg_parser()
     print(args)
