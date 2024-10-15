@@ -5,7 +5,7 @@ src_path=../src/
 dataset_path=../dataset/
 results_path=../results/
 model_name=mobilenet_v2 # [mobilenet_v2, ]
-dataset_type=cifar100 # [cifar10, ]
+dataset_type=cifar10 # [cifar10, cifar100]
 server_file_name=server.py
 client_file_name=client.py
 
@@ -19,11 +19,12 @@ learning_rate=0.01
 momentum=0.9
 weight_decay=0.0001
 temperature=0.07
-alpha=1
+# alpha_list=(1.0 0.8 0.6 0.4 0.2)
+alpha_list=(1.0)
 moon_temperature=0.5
 kd_temperature=2.0
 mkd_temperature=2.0
-data_partitions=(5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
+data_partition=(5) # 0: IID, 1: Non-IID(class), 2: Non-IID(Dirichlet(0.6)), 3: Non-IID(Dirichlet(0.3)) 4: Non-IID(Dirichlet(0.1)), 5: Non-IID(Dirichlet(0.05))
 # queue_size=32768
 queue_size=10240
 output_size=64
@@ -31,7 +32,7 @@ output_size=64
 fed_flag=True # クライアントモデルに対してAggregation実行
 proto_flag=False # Prototypical Contrastive Learning
 moco_flag=False # Momentum Contrastive Learning
-con_flag=False # Model Contrastive Learning
+con_flag=True # Model Contrastive Learning
 kd_flag=False # Knowledge Distillation
 mkd_flag=False # Mutual Knowledge Distillation
 TiM_flag=False # Tiny-Model Contrastive Learning
@@ -42,18 +43,17 @@ Mix_s_flag=False
 self_kd_flag=False
 
 current_date=$(date +%Y-%m-%d)
-save_data=False
+save_data=True
 
 source ~/anaconda3/etc/profile.d/conda.sh
 conda activate ${anaconda_env}
 cd ${src_path}
 
-# for batch_size in "${batch_sizes[@]}"; do
-#     for data_partition in "${data_partitions[@]}"; do
-for data_partition in "${data_partitions[@]}"; do
+for alpha in "${alpha_list[@]}"; do
+
     for batch_size in "${batch_sizes[@]}"; do
 
-        echo "Batch Size: " ${batch_size} ", Data Partition: " ${data_partition} 
+        echo "Batch Size: " ${batch_size} ", Dirichlet alpha: " ${alpha} 
 
         params="--port_number ${port_number} \
             --seed ${seed} \

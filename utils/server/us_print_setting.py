@@ -12,9 +12,11 @@ def print_setting(
 
     model_name = args.model_name
     dataset = args.dataset_type
+    num_clients = args.num_clients
     dist_type = 'alpha' + str(args.alpha)
     train_mode = named_result_dir(args)
     date = args.date
+
     round = 'R' + str(args.num_rounds)
     epoch = 'E' + str(args.num_epochs) 
     batch = 'B' + str(args.batch_size)
@@ -28,9 +30,10 @@ def print_setting(
 
     dir_name1 = train_mode
     dir_name2 = model_name + '_' + dataset
-    dir_name3 = date
+    dir_name3 = str(num_clients) + 'clients'
+    dir_name4 = date
     
-    result_directory = dir_name1 + '/' + dir_name2 + '/' + dir_name3 + '/'
+    result_directory = dir_name1 + '/' + dir_name2 + '/' + dir_name3 + '/' + dir_name4 + '/'
     file_name = round + '_' + epoch + '_'  + batch + '_'  + dist_type
 
     print(f' - total: {result_directory + file_name} ')

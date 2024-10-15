@@ -49,10 +49,14 @@ def main(args: argparse.ArgumentParser):
 
     # データローダの作成（通信あり）
     # train_loader, test_loader = uc_dset.data_setting(args, client_socket)
-    train_loader, test_loader = uc_dset.set_data_dist(args, client_socket)
+    train_loader, test_loader, data_distribution = uc_dset.set_data_dist(args, client_socket)
 
     # クライアントモデルを受信
     client_model, optimizer = uc_mset.client_setting(args, client_socket, device)
+
+    if args.save_data:
+        # データ分布を送信
+        uc_sr.send(client_socket, data_distribution)
 
     # プロジェクションヘッドの受信
     if args.ph_flag:

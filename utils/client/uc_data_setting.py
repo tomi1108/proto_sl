@@ -158,4 +158,4 @@ def set_data_dist(
         # テストイテレーションをサーバに送信するコードを実装
         test_loader = None
 
-    return train_loader, test_loader    
+    return train_loader, test_loader, class_counts

@@ -59,7 +59,7 @@ def main(args: argparse.ArgumentParser):
     # 結果を記録するCSVファイルへのパスを設定
     if args.save_data:
         result_dir_path, file_name = us_print.print_setting(args)
-        acc_dir_path, loss_dir_path = us_result.create_directory(args, result_dir_path)
+        acc_dir_path, dist_dir_path, loss_dir_path = us_result.create_directory(args, result_dir_path)
         accuracy_path, loss_path = us_result.set_output_file(args, acc_dir_path, loss_dir_path, file_name)
         
     # 通信開始
@@ -82,6 +82,13 @@ def main(args: argparse.ArgumentParser):
     # クライアントにモデルを送信
     for connection in connections.values():
         us_sr.send(connection, client_model.to('cpu'))
+    
+    # 各クライアントのデータ分布を保存
+    if args.save_data:
+        distribution_dict = {}
+        for client_id, connection in connections.items():
+            distribution_dict[client_id] = us_sr.receive(connection)
+        us_result.save_data_dist(num_classes, dist_dir_path, file_name, distribution_dict)    
 
     # MOON用の次元削減線形層を定義と送信
     if args.ph_flag:
