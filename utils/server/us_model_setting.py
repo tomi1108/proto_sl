@@ -41,5 +41,6 @@ def model_setting(
     criterion = nn.CrossEntropyLoss()
 
     server_model = server_model.to(device)
+    client_model = client_model.to(device)
 
     return server_model, client_model, optimizer, criterion, feature_size

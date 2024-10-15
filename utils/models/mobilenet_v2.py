@@ -7,7 +7,7 @@ def create_model(
     num_classes: int
 ):
     
-    model = models.mobilenet_v2(pretrained=False)
+    model = models.mobilenet_v2(weights=None)
     dataset = args.dataset_type
     
     if dataset == 'cifar10':
