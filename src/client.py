@@ -4,23 +4,26 @@ sys.path.append('./../')
 import torch
 import torch.nn.functional as F
 import socket
+import copy
 import numpy as np
 import argparse
 from tqdm import tqdm
 
 import utils.u_argparser as u_parser
-import utils.u_model_contrast as u_moon
 import utils.u_momentum_contrast as u_moco
 import utils.u_knowledge_distillation as u_kd
 import utils.u_mutual_knowledge_distillation as u_mkd
 import utils.u_tiny_moon as u_tim
 import utils.u_mixup as u_mix
 
+# 共通モジュールのインポート
 import utils.common.u_set_seed as u_seed
-
+# クライアント用モジュールのインポート
 import utils.client.uc_data_setting as uc_dset
 import utils.client.uc_model_setting as uc_mset
 import utils.client.uc_send_receive as uc_sr
+# アプローチ用モジュールのインポート
+import utils.approach.ua_model_contrastive as ua_moon
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -61,7 +64,7 @@ def main(args: argparse.ArgumentParser):
     if args.moco_flag: # Momentum Contrastive Learning
         moco = u_moco.Moco(args, client_model, projection_head, device)
     if args.con_flag: # Model Contrastive Learning
-        moon = u_moon.MOON(args, projection_head, device)
+        moon = ua_moon.MOON(args, projection_head, device)
     if args.kd_flag: # Knowledge Distillation
         kd = u_kd.KD(args, client_model, projection_head, device)
     if args.mkd_flag: # Mutual Knowledge Distillation
@@ -75,12 +78,13 @@ def main(args: argparse.ArgumentParser):
     num_rounds = args.num_rounds
     num_clients = args.num_clients
     fed_flag = args.fed_flag
+    moon_flag = args.con_flag
 
     for round in range(num_rounds):
 
         client_model.train()
         in_training = True
-        print("--- Round {}/{} ---".format(round+1, num_rounds))
+        print("\n--- Round {}/{} ---".format(round+1, num_rounds))
 
         while in_training:
 
@@ -102,7 +106,12 @@ def main(args: argparse.ArgumentParser):
                 reminder = receive_data_dict['reminder']
 
                 smashed_data.grad = gradients.clone().detach()
-                smashed_data.backward(gradient=smashed_data.grad)
+                smashed_data.backward(retain_graph=True, gradient=smashed_data.grad)
+
+                if round > 0:
+                    if moon_flag:
+                        moon.train(images, smashed_data, client_model, optimizer)
+
                 optimizer.step()
 
                 if reminder < num_clients:
@@ -113,11 +122,20 @@ def main(args: argparse.ArgumentParser):
 
             if fed_flag:
 
+                if moon_flag:
+                    moon.previous_client_model = copy.deepcopy(client_model)
+
                 client_model = client_model.to('cpu')
                 client_model.eval()
                 uc_sr.send(client_socket, client_model)
                 client_model.load_state_dict(uc_sr.receive(client_socket).state_dict())
                 client_model = client_model.to(device)
+
+                if moon_flag:
+                    moon.global_client_model = copy.deepcopy(client_model)
+                    moon.requires_grad_false()
+                    if round > 0:
+                        moon.reset_loss(round)
             
             else:
                 

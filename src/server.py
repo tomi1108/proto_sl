@@ -103,7 +103,7 @@ def main(args: argparse.ArgumentParser):
     for round in range(num_rounds):
 
         server_model.train()
-        print("--- Round {}/{} ---".format(round+1, num_rounds))
+        print("\n--- Round {}/{} ---".format(round+1, num_rounds))
 
         for epoch in range(num_epochs):
             
@@ -246,7 +246,7 @@ def main(args: argparse.ArgumentParser):
                 test_loader,
                 device
             )
-            print(f"Round: {round}, Accuracy: {accuracy}, Loss: {test_loss}")
+            print(f"Round: {round+1}, Accuracy: {accuracy}, Loss: {test_loss}")
 
             if args.save_data:
                 u_save.save_data(accuracy_path, [round+1, accuracy])
