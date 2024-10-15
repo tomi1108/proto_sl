@@ -5,109 +5,28 @@ import random
 import csv
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 import numpy as np
-import torchvision.models as models
-import torchvision.datasets as dsets
-import torchvision.transforms as transforms
 import socket
 import argparse
-import os
 from tqdm import tqdm
 
 import utils.u_argparser as u_parser
-import utils.u_send_receive as u_sr
-import utils.u_data_setting as u_dset
-import utils.u_print_setting as u_print
-import utils.u_model_setting as u_mset
-import utils.u_prototype as u_proto
 import utils.u_mixup as u_mix
 
-device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+# 共通モジュールのインポート
+import utils.common.u_set_seed as u_seed
+import utils.common.u_save_data as u_save
+# サーバ用モジュールのインポート
+import utils.server.us_print_setting as us_print
+import utils.server.us_result_output as us_result
+import utils.server.us_data_setting as us_dset
+import utils.server.us_model_setting as us_mset
+import utils.server.us_send_receive as us_sr
+import utils.server.us_model_aggregation as us_magg
+import utils.server.us_model_testing as us_test
+# アプローチ用モジュールのインポート
+import utils.approach.ua_prototype_contrastive as ua_proto
 
-def set_model(cfg, num_classes):
-    model = models.mobilenet_v2(num_classes=num_classes)
-    model.classifier[1] = nn.Linear(1280, cfg['output_size'])
-    model.classifier.append(nn.ReLU6(inplace=True))
-    model.classifier.append(nn.Linear(cfg['output_size'], num_classes))
-    client_model = model.features[:6]
-    return model, client_model.to(device)
-
-class Server_Model(nn.Module):
-    def __init__(self, model):
-        super(Server_Model, self).__init__()
-
-        self.model = nn.Sequential(
-            model.features[6:],
-            nn.Flatten(),
-            model.classifier
-        )
-    
-    def forward(self, x):
-        output = self.model(x)
-        return output
-
-def set_server_model(model, cfg):
-    top_model = Server_Model(model=model)
-    optimizer = torch.optim.SGD(params = top_model.parameters(),
-                                lr = cfg['lr'],
-                                momentum = cfg['momentum'],
-                                weight_decay = cfg['weight_decay']
-                                )
-    criterion = nn.CrossEntropyLoss()
-    return top_model, optimizer, criterion
-
-def set_seed(seed: int):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    if device == torch.device('cuda'):
-        torch.cuda.manual_seed_all(seed)
-        torch.cuda.manual_seed(seed)
-        torch.backends.cudnn.deterministic = True
-        torch.backends.cudnn.benchmark = False
-
-def create_directory(path: str):
-    loss = '/loss/'
-    accuracy = '/accuracy/'
-    images = '/images/'
-    if not os.path.exists(path):
-        os.makedirs(path)
-        print(f"Directory {path} created.")
-    if not os.path.exists(path+loss):
-        os.makedirs(path+loss)
-        print(f'Directory {path+loss} created')
-    if not os.path.exists(path+accuracy):
-        os.makedirs(path+accuracy)
-        print(f'Directory {path+accuracy} created')
-    if not os.path.exists(path+images):
-        os.makedirs(path+images)
-        print(f'Directory {path+images} created')
-
-def set_output_file(args: argparse.ArgumentParser, dict_path: str, loss_file: str, accuracy_file: str):
-
-    path_to_loss_file = args.results_path + dict_path + '/loss/' + loss_file
-    path_to_accuracy_file = args.results_path + dict_path + '/accuracy/' + accuracy_file
-
-    header = ['Round']
-    if args.fed_flag == True: # 平均化したモデルでAccuracyを測定する場合
-        header += ['Accuracy']
-    elif args.fed_flag == False: # 各クライアントモデルでAccuracyを測定する場合
-        header += ['Average_Accuracy']
-        header += [f'Client{i+1}' for i in range(args.num_clients)]
-
-    with open(path_to_loss_file, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        if args.proto_flag:
-            writer.writerow(['Epoch', 'Loss', 'Proto Loss', 'Total Loss'])
-        else:
-            writer.writerow(['Epoch', 'Loss'])
-
-    with open(path_to_accuracy_file, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(header)
-
-    return path_to_loss_file, path_to_accuracy_file
 
 def set_connection(args: argparse.ArgumentParser):
     connection_list = []
@@ -126,7 +45,7 @@ def set_connection(args: argparse.ArgumentParser):
     connections = {}
     for i, connection in enumerate(connection_list):
         client_id = i+1
-        u_sr.server(connection, b'SEND', client_id)
+        us_sr.send(connection, client_id)
         connections['Client {}'.format(client_id)] = connection
 
     return server_socket, connections    
@@ -134,40 +53,42 @@ def set_connection(args: argparse.ArgumentParser):
 
 def main(args: argparse.ArgumentParser):
 
-    # シードを設定して再現性を持たせる
-    set_seed(args.seed)
+    # シード設定
+    u_seed.set_seed(args.seed, device)
 
-    if args.save_data == True:
-        # 初期設定を出力
-        dict_path, loss_file_name, accuracy_file_name = u_print.print_setting(args)
+    # 結果を記録するCSVファイルへのパスを設定
+    if args.save_data:
+        result_dir_path, file_name = us_print.print_setting(args)
+        acc_dir_path, dist_dir_path, loss_dir_path = us_result.create_directory(args, result_dir_path)
+        accuracy_path, loss_path = us_result.set_output_file(args, acc_dir_path, loss_dir_path, file_name)
         
-        # 結果を格納するディレクトリを作成
-        create_directory(args.results_path + dict_path)
-
-        # 結果を出力くするファイルを初期化
-        loss_path, accuracy_path = set_output_file(args, dict_path, loss_file_name, accuracy_file_name)
-
-    # クライアントと通信開始
+    # 通信開始
     print("========== Server ==========\n")
     server_socket, connections = set_connection(args)
     
-    # データセットを用意（SFLの場合のみ）
-    test_loader, num_class, num_iterations, num_test_iterations = u_dset.server_data_setting(args, connections) # fed_flag==FalseならNone
+    # テストローダ作成（通信あり）
+    test_loader, num_classes, num_train_iterations, num_test_iterations, weighs_in_model_aggregation = us_dset.set_client_data_dist(args, connections)
 
     # モデルを定義
-    server_model, client_model, optimizer, criterion = u_mset.model_setting(args, num_class)
-    server_model = server_model.to(device)
-    client_model = client_model.to(device)
+    server_model, client_model, optimizer, criterion, feature_size = us_mset.model_setting(args, num_classes, device)
 
     # プロトタイプを定義
     if args.proto_flag:
-        prototype = u_proto.prototype(args, num_class)
+        # prototype = u_proto.prototype(args, num_classes)
+        prototype = ua_proto.prototype(args, num_classes, feature_size, device)
     if args.Mix_s_flag:
         mix = u_mix.Mixup_server(args, device)
     
     # クライアントにモデルを送信
     for connection in connections.values():
-        u_sr.server(connection, b"SEND", client_model)
+        us_sr.send(connection, client_model.to('cpu'))
+    
+    # 各クライアントのデータ分布を保存
+    if args.save_data:
+        distribution_dict = {}
+        for client_id, connection in connections.items():
+            distribution_dict[client_id] = us_sr.receive(connection)
+        us_result.save_data_dist(num_classes, dist_dir_path, file_name, distribution_dict)    
 
     # MOON用の次元削減線形層を定義と送信
     if args.ph_flag:
@@ -176,167 +97,170 @@ def main(args: argparse.ArgumentParser):
             nn.Linear(512, 64)
         )
         for connection in connections.values():
-            u_sr.server(connection, b"SEND", projection_head)
+            us_sr.send(connection, projection_head)
 
     current_epoch = 0
-    total_epoch = args.num_rounds * args.num_epochs
+    num_clients = args.num_clients
+    num_rounds = args.num_rounds
+    num_epochs = args.num_epochs
+    total_epoch = num_rounds * num_epochs
+    client_number = 1
+
     # 学習開始
-    for round in range(args.num_rounds):
+    for round in range(num_rounds):
 
         server_model.train()
-        print("--- Round {}/{} ---".format(round+1, args.num_rounds))
+        print("\n--- Round {}/{} ---".format(round+1, num_rounds))
 
-        for epoch in range(args.num_epochs):
+        for epoch in range(num_epochs):
             
             current_epoch += 1
-            loss_list = []
-            proto_loss_list = []
-            total_loss_list = []
-            print("--- Epoch {}/{} ---".format(epoch+1, args.num_epochs))
+            mu = current_epoch / total_epoch
 
-            for i in tqdm(range(num_iterations)):
-
-                # if args.Mix_s_flag and round > 0:
-                #     client_data_dict = mix.mix_smashed_data(connections)
-                #     for client_id, connection in connections.items():
-                #         smashed_data = client_data_dict[client_id]['smashed_data'].to(device)
-                #         smashed_data.retain_grad()
-                #         labels = client_data_dict[client_id]['labels'].to(device)
-
-                #         optimizer.zero_grad()
-                #         _, output = server_model(smashed_data)
-                #         loss = criterion(output, labels)
-                #         loss.backward(retain_graph=True)
-                #         loss_list.append(loss.item())
-                #         optimizer.step()
-
-                #         u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
-
-                # else:
-                #     for connection in connections.values():
-
-                #         client_data = u_sr.server(connection, b"REQUEST")
-                #         smashed_data = client_data['smashed_data'].to(device)
-                #         smashed_data.retain_grad()
-                #         labels = client_data['labels'].to(device)
-
-                #         if smashed_data == None or labels == None:
-                #             raise Exception("client_data has None object: {}".format(client_data))
-
-                #         optimizer.zero_grad()
-                #         p_output, output = server_model(smashed_data)
-                #         loss = criterion(output, labels)
-
-                #         if args.proto_flag:
-                #             proto_loss = prototype.compute_prototypes(p_output, labels, device) # ここでプロトタイプの計算を行っている
-                #             if proto_loss:
-                #                 proto_loss_list.append(proto_loss.item())
-                #             if prototype.use_proto:
-                #                 total_loss = loss * (current_epoch / total_epoch) + proto_loss * (1 - current_epoch / total_epoch)
-                #                 total_loss_list.append(total_loss.item())
-                #                 total_loss.backward()
-                #             else:
-                #                 loss.backward()
-                #         else:
-                #             loss.backward()
-
-                #         loss_list.append(loss.item())
-                #         optimizer.step()
-
-                #         u_sr.server(connection, b"SEND", smashed_data.grad.to('cpu'))
-
-                for connection in connections.values():
-
-                    client_data = u_sr.server(connection, b"REQUEST")
-                    smashed_data = client_data['smashed_data'].to(device)
-                    smashed_data.retain_grad()
-                    labels = client_data['labels'].to(device)
-
-                    if smashed_data == None or labels == None:
-                        raise Exception("client_data has None object: {}".format(client_data))
-
-                    optimizer.zero_grad()
-                    p_output, output = server_model(smashed_data)
-                    loss = criterion(output, labels)
-
-                    loss.backward(retain_graph=True)
-                    smashed_data_grad = smashed_data.grad.clone().detach()
-                    
-                    grads1 = [ param.grad.clone() for param in server_model.parameters() ]
-
-                    if args.proto_flag:
-                        proto_loss, grads2 = prototype.compute_prototypes(p_output, labels, server_model) # ここでプロトタイプの計算を行っている
-                        if prototype.use_proto:
-                            optimizer.zero_grad()
-                            proto_loss_list.append(proto_loss.item())
-                            # proto_loss.backward(retain_graph=True)
-                            # grads2 = [ param.grad.clone() for param in server_model.parameters() ]
-                            combine_grad = [ (current_epoch / total_epoch) * g1 + (1 - current_epoch / total_epoch) * g2 for g1, g2 in zip(grads1, grads2)]
-                            for param, grad in zip(server_model.parameters(), combine_grad):
-                                param.grad = grad
-
-                    optimizer.step()
-                    loss_list.append(loss.item())
-
-                    u_sr.server(connection, b"SEND", smashed_data_grad.to('cpu'))
-
-            mean_loss = np.mean(loss_list)
+            runnning_loss = 0.0
             if args.proto_flag:
-                mean_proto_loss = np.mean(proto_loss_list)
-                mean_total_loss = np.mean(total_loss_list)
+                prototype.reset_loss()
+
+            print("--- Epoch {}/{} ---".format(epoch+1, num_epochs))
+
+            for iter in tqdm(range(num_train_iterations)):
+
+                connection = connections['Client {}'.format(client_number)]
+
+                client_data = us_sr.receive(connection)
+                smashed_data = client_data['smashed_data'].to(device)
+                labels = client_data['labels'].to(device)
+                smashed_data.retain_grad()
+
+                if smashed_data == None or labels == None:
+                    raise Exception("client_data has None object: {}".format(client_data))
+
+                optimizer.zero_grad()
+                p_output, output = server_model(smashed_data)
+                loss = criterion(output, labels)
+                runnning_loss += loss.item()
+
+                if args.proto_flag:
+
+                    # use_protoがTrueなら、totalのlossに置き換わる                        
+                    loss = prototype.compute_prototypes(p_output, labels, loss, mu)
+
+                loss.backward()
+                optimizer.step()
+
+                smashed_data_grad = smashed_data.grad.clone().detach()
+                send_data_dict = {'gradients': None, 'reminder': None}
+
+                send_data_dict['gradients'] = smashed_data_grad.to('cpu')
+                if epoch == num_epochs-1:
+                    send_data_dict['reminder'] = num_train_iterations - (iter + 1)
+                else:
+                    send_data_dict['reminder'] = num_clients
+
+                us_sr.send(connection, send_data_dict)
+
+                # 次に通信するクライアントを指定
+                client_number += 1
+                if client_number > num_clients:
+                    client_number = 1
+
+                # for connection in connections.values():
+
+                #     client_data = us_sr.receive(connection)
+                #     smashed_data = client_data['smashed_data'].to(device)
+                #     labels = client_data['labels'].to(device)
+                #     smashed_data.retain_grad()
+
+                #     if smashed_data == None or labels == None:
+                #         raise Exception("client_data has None object: {}".format(client_data))
+
+                #     optimizer.zero_grad()
+                #     p_output, output = server_model(smashed_data)
+                #     loss = criterion(output, labels)
+                #     runnning_loss += loss.item()
+
+                #     if args.proto_flag:
+
+                #         # use_protoがTrueなら、totalのlossに置き換わる                        
+                #         loss = prototype.compute_prototypes(p_output, labels, loss, mu)
+
+                #     loss.backward()
+                #     optimizer.step()
+
+                #     smashed_data_grad = smashed_data.grad.clone().detach()
+                #     send_data_dict = {'gradients': None, 'reminder': None}
+
+                #     send_data_dict['gradients'] = smashed_data_grad.to('cpu')
+                #     if epoch == num_epochs-1:
+                #         send_data_dict['reminder'] = num_train_iterations - (iter + 1)
+                #     else:
+                #         send_data_dict['reminder'] = num_clients
+
+                #     # us_sr.send(connection, smashed_data_grad.to('cpu'))
+                #     us_sr.send(connection, send_data_dict)
+                    
+                    # main_grad = [ param.grad.clone() for param in server_model.parameters() ]
+
+                    # if args.proto_flag:
+                    #     proto_loss, grads2 = prototype.compute_prototypes(p_output, labels, server_model) # ここでプロトタイプの計算を行っている
+                    #     if prototype.use_proto:
+                    #         optimizer.zero_grad()
+                    #         proto_loss_list.append(proto_loss.item())
+                    #         # proto_loss.backward(retain_graph=True)
+                    #         # grads2 = [ param.grad.clone() for param in server_model.parameters() ]
+                    #         combine_grad = [ (current_epoch / total_epoch) * g1 + (1 - current_epoch / total_epoch) * g2 for g1, g2 in zip(main_grad, grads2)]
+                    #         for param, grad in zip(server_model.parameters(), combine_grad):
+                    #             param.grad = grad
+
+
+            mean_loss = runnning_loss / num_train_iterations
+
+            if args.proto_flag:
+                
+                mean_proto_loss, mean_total_loss = prototype.get_loss()
                 print(f'Loss: {mean_loss}, Proto Loss: {mean_proto_loss}, Total Loss: {mean_total_loss}')
-                if args.save_data:
-                    with open(loss_path, 'a', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow([current_epoch, mean_loss, mean_proto_loss, mean_total_loss])
+                write_data = [current_epoch, mean_loss, mean_proto_loss, mean_total_loss]
+
             else:
+
                 print('Loss: ', mean_loss)
-                if args.save_data:
-                    with open(loss_path, 'a', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow([current_epoch, mean_loss])
+                write_data = [current_epoch, mean_loss]
+
+            if args.save_data:
+                u_save.save_data(loss_path, write_data)
 
         
-        if args.fed_flag == True:
-            # 平均化
+        if args.fed_flag:
+            
+            # クライアントモデルを受信
             client_model_dict = {}
             for client_id, connection in connections.items():
-                client_model_dict[client_id] = u_sr.server(connection, b"REQUEST").to(device)
-            
-            client_model = client_model.to(device)
-            for idx in range(len(client_model_dict)):
-                for param1, param2 in zip(client_model.parameters(), client_model_dict['Client {}'.format(idx+1)].parameters()):
-                    if idx == 0:
-                        param1.data.copy_(param2.data)
-                    elif 0 < idx < len(client_model_dict)-1:
-                        param1.data.add_(param2)
-                    else:
-                        param1.data.add_(param2.data)
-                        param1.data.div_(len(client_model_dict))
-            
-            # 平均化したモデルでテスト
-            server_model.eval()
-            correct = 0
-            total = 0
-            with torch.no_grad():
-                for images, labels in tqdm(test_loader):
-                    images = images.to(device)
-                    labels = labels.to(device)
-                    p_outputs, outputs = server_model(client_model(images))
-                    _, predicted = torch.max(outputs.data, 1)
-                    total += labels.size(0)
-                    correct += (predicted == labels).sum().item()
-                accuracy = 100 * correct / total
-                print("Round: {}, Accuracy: {:.2f}%".format(round+1, accuracy))
+                client_model_dict[client_id] = us_sr.receive(connection).to(device)
+            client_model.to(device)
 
-                if args.save_data == True:
-                    with open(accuracy_path, 'a', newline='') as f:
-                        writer = csv.writer(f)
-                        writer.writerow([round+1, accuracy])
+            # グローバルクライアントモデルを更新
+            client_model = us_magg.model_aggregation(
+                client_model,
+                client_model_dict,
+                weighs_in_model_aggregation
+            )
+            
+            # グローバルモデルでテスト
+            server_model.eval()
+            accuracy, test_loss = us_test.test_with_global_model(
+                server_model,
+                client_model,
+                test_loader,
+                device
+            )
+            print(f"Round: {round+1}, Accuracy: {accuracy}, Loss: {test_loss}")
+
+            if args.save_data:
+                u_save.save_data(accuracy_path, [round+1, accuracy])
             
             # 平均化モデルをクライアントに送信
             for connection in connections.values():
-                u_sr.server(connection, b"SEND", client_model.to('cpu'))
+                us_sr.send(connection, client_model.to('cpu'))
 
                 
         elif args.fed_flag == False:
@@ -350,7 +274,8 @@ def main(args: argparse.ArgumentParser):
                     correct = 0
                     total = 0
                     for i in tqdm(range(num_test_iterations)):
-                        client_data = u_sr.server(connection, b'REQUEST')
+                        # client_data = u_sr.server(connection, b'REQUEST')
+                        client_data = us_sr.receive(connection)
                         smashed_data = client_data['smashed_data'].to(device)
                         labels = client_data['labels'].to(device)
                         p_outputs, output = server_model(smashed_data)
@@ -359,7 +284,8 @@ def main(args: argparse.ArgumentParser):
                         correct += (predicted == labels).sum().item()
                     accuracy = correct / total * 100
                     accuracy_dict[client_id] = accuracy
-                    u_sr.server(connection, b'SEND', accuracy)
+                    # u_sr.server(connection, b'SEND', accuracy)
+                    us_sr.send(connection, accuracy)
             print('Round: {}'.format(round+1), end=',')
             accuracy_list = []
             for idx in range(args.num_clients):
@@ -386,6 +312,8 @@ def main(args: argparse.ArgumentParser):
 
 if __name__ == '__main__':
     
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
     args = u_parser.arg_parser()
     print(args)
     main(args)

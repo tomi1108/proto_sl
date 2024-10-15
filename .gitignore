@@ -1,2 +1,7 @@
 /dataset/
 /utils/__pycache__/
+/utils/server/__pycache__/
+/utils/client/__pycache__/
+/utils/common/__pycache__/
+/utils/models/__pycache__/
+/utils/approach/__pycache__/
