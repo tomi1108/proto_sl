@@ -62,21 +62,30 @@ def create_dataset(
     モデル集約をしないとき (fed_flag==False) は、テストローダも作成して返す
     '''
 
+    dataset_type = args.dataset_type
+    dataset_path = args.dataset_path
+    fed_flag = args.fed_flag
     test_loader = None # args.fed_flagがTrueならNoneのまま返す
 
-    if args.dataset_type == 'cifar10':
+    if dataset_type == 'cifar10':
         
-        train_dataset = dsets.CIFAR10(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
-        if args.fed_flag == False:
-            test_dataset = dsets.CIFAR10(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
+        train_dataset = dsets.CIFAR10(root=dataset_path, train=True, transform=transforms.ToTensor(), download=True)
+        if not fed_flag:
+            test_dataset = dsets.CIFAR10(root=dataset_path, train=False, transform=transforms.ToTensor(), download=True)
     
-    elif args.dataset_type == 'mnist':
+    if dataset_type == 'cifar100':
 
-        train_dataset = dsets.MNIST(root=args.dataset_path, train=True, transform=transforms.ToTensor(), download=True)
-        if args.fed_flag == False:
-            test_dataset = dsets.MNIST(root=args.dataset_path, train=False, transform=transforms.ToTensor(), download=True)
+        train_dataset = dsets.CIFAR100(root=dataset_path, train=True, transform=transforms.ToTensor(), download=True)
+        if not fed_flag:
+            test_dataset = dsets.CIFAR100(root=dataset_path, train=False, transform=transforms.ToTensor(), download=True)
+
+    elif dataset_type == 'mnist':
+
+        train_dataset = dsets.MNIST(root=dataset_path, train=True, transform=transforms.ToTensor(), download=True)
+        if not fed_flag:
+            test_dataset = dsets.MNIST(root=dataset_path, train=False, transform=transforms.ToTensor(), download=True)
     
-    if args.fed_flag == False:
+    if not fed_flag:
         test_loader = DataLoader(dataset=test_dataset, batch_size=args.batch_size, shuffle=False, pin_memory=False) 
     
     return train_dataset, test_loader

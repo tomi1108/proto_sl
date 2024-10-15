@@ -220,13 +220,17 @@ def create_test_loader(
     '''
     
     dataset_type = args.dataset_type
-    root = args.dataset_path
+    dataset_path = args.dataset_path
     batch_size = args.batch_size
 
     if dataset_type == 'cifar10':
 
-        test_dataset = dsets.CIFAR10(root=root, train=False, transform=transforms.ToTensor(), download=True)
+        test_dataset = dsets.CIFAR10(root=dataset_path, train=False, transform=transforms.ToTensor(), download=True)
     
+    elif dataset_type == 'cifar100':
+
+        test_dataset = dsets.CIFAR100(root=dataset_path, train=False, transform=transforms.ToTensor(), download=True)
+
     test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False, pin_memory=False)
 
     return test_loader
