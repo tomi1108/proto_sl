@@ -1,4 +1,5 @@
 /dataset/
+/plotter/
 /utils/__pycache__/
 /utils/server/__pycache__/
 /utils/client/__pycache__/
